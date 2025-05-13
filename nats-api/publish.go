@@ -1,34 +1,32 @@
 package main
 
 import (
-	"encoding/json"
 	"net/http"
 	"strconv"
 
+	"github.com/labstack/echo/v4"
 	"github.com/nats-io/nats.go"
 )
 
 type PublishRequest struct {
-	TopicName string `json:"topicName"` // JetStream stream 이름
-	Message   string `json:"message"`   // 게시할 본문
-	Subject   string `json:"subject"`   // 생략 가능: 기본은 topicName
+	TopicName string `json:"topicName"`
+	Message   string `json:"message"`
+	Subject   string `json:"subject"`
 }
 
 type PublishResponse struct {
 	MessageID string `json:"messageId"`
 }
 
-func publishHandler(js nats.JetStreamContext) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func publishHandler(js nats.JetStreamContext) echo.HandlerFunc {
+	return func(c echo.Context) error {
 		var req PublishRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
 		if req.TopicName == "" || req.Message == "" {
-			http.Error(w, "missing required fields", http.StatusBadRequest)
-			return
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
 		}
 
 		subject := req.Subject
@@ -38,14 +36,12 @@ func publishHandler(js nats.JetStreamContext) http.HandlerFunc {
 
 		ack, err := js.Publish(subject, []byte(req.Message))
 		if err != nil {
-			http.Error(w, "failed to publish: "+err.Error(), http.StatusInternalServerError)
-			return
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to publish: " + err.Error()})
 		}
 
 		resp := PublishResponse{
 			MessageID: strconv.FormatUint(ack.Sequence, 10),
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		return c.JSON(http.StatusOK, resp)
 	}
 }

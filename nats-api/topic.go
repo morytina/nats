@@ -1,10 +1,10 @@
 package main
 
 import (
-	"encoding/json"
 	"net/http"
 	"time"
 
+	"github.com/labstack/echo/v4"
 	"github.com/nats-io/nats.go"
 )
 
@@ -21,19 +21,18 @@ type ListTopicsResponse struct {
 	Topics []string `json:"topics"`
 }
 
-func createTopicHandler(js nats.JetStreamContext) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func createTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
+	return func(c echo.Context) error {
 		var req CreateTopicRequest
-		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-			http.Error(w, "invalid request body", http.StatusBadRequest)
-			return
+		if err := c.Bind(&req); err != nil {
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
 		streamCfg := &nats.StreamConfig{
 			Name:              req.Name,
 			Subjects:          []string{req.Subject},
 			Storage:           nats.FileStorage,
-			Replicas:          1, // 복제본 수 1로 수정됨
+			Replicas:          1,
 			Retention:         nats.LimitsPolicy,
 			Discard:           nats.DiscardOld,
 			MaxMsgs:           -1,
@@ -49,48 +48,47 @@ func createTopicHandler(js nats.JetStreamContext) http.HandlerFunc {
 
 		_, err := js.AddStream(streamCfg)
 		if err != nil {
-			http.Error(w, "failed to create stream: "+err.Error(), http.StatusInternalServerError)
-			return
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "failed to create stream: " + err.Error(),
+			})
 		}
 
 		resp := CreateTopicResponse{
 			TopicArn: "srn:scp:sns:kr-cp-1:100000000000:" + req.Name,
 		}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		return c.JSON(http.StatusOK, resp)
 	}
 }
 
-func deleteTopicHandler(js nats.JetStreamContext) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		topicName := r.URL.Query().Get("name")
+func deleteTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
+	return func(c echo.Context) error {
+		topicName := c.QueryParam("name")
 		if topicName == "" {
-			http.Error(w, "missing 'name' parameter", http.StatusBadRequest)
-			return
+			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing 'name' parameter"})
 		}
 
 		err := js.DeleteStream(topicName)
 		if err != nil {
-			http.Error(w, "failed to delete stream: "+err.Error(), http.StatusInternalServerError)
-			return
+			return c.JSON(http.StatusInternalServerError, map[string]string{
+				"error": "failed to delete stream: " + err.Error(),
+			})
 		}
 
-		w.WriteHeader(http.StatusOK)
-		w.Write([]byte("Topic deleted successfully"))
+		return c.String(http.StatusOK, "Topic deleted successfully")
 	}
 }
 
-func listTopicsHandler(js nats.JetStreamContext) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
+func listTopicsHandler(js nats.JetStreamContext) echo.HandlerFunc {
+	return func(c echo.Context) error {
 		var topics []string
 		lister := js.StreamNames()
+
 		for name := range lister {
 			arn := "srn:scp:sns:kr-cp-1:100000000000:" + name
 			topics = append(topics, arn)
 		}
 
 		resp := ListTopicsResponse{Topics: topics}
-		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(resp)
+		return c.JSON(http.StatusOK, resp)
 	}
 }
