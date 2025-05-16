@@ -1,0 +1,3 @@
+region: kr-west1
+env: dev2
+logging: debug

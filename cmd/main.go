@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"sync/atomic"
@@ -15,11 +14,12 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+
+	"nats/internal/api"
+	"nats/internal/logger"
 )
 
 const (
-	cspRegion     = "kr-cp-1"
-	cspAccount    = "100000000000"
 	connectionNum = 3
 )
 
@@ -39,6 +39,8 @@ var (
 )
 
 func main() {
+	logger.Init()
+
 	prometheus.MustRegister(natsReconnects)
 	prometheus.MustRegister(natsDisconnects)
 
@@ -51,13 +53,13 @@ func main() {
 
 		nc, err := nats.Connect(nats.DefaultURL, opts...)
 		if err != nil {
-			log.Fatalf("[ERROR] NATS 연결 실패 (%d): %v", i, err)
+			logger.Fatal("NATS 연결 실패", "index", i, "error", err)
 		}
 		ncPool[i] = nc
 
 		js, err := nc.JetStream()
 		if err != nil {
-			log.Fatalf("[ERROR] JetStream 컨텍스트 생성 실패 (%d): %v", i, err)
+			logger.Fatal("JetStream 컨텍스트 생성 실패", "index", i, "error", err)
 		}
 		jsPool[i] = js
 	}
@@ -69,9 +71,9 @@ func main() {
 	e.Any("/", ActionRouter)
 
 	go func() {
-		log.Println("[INFO] API 서버 실행 중: http://localhost:8080")
+		logger.Info("API 서버 실행 중", "url", "http://localhost:8080")
 		if err := e.Start(":8080"); err != nil {
-			log.Printf("[WARN] 서버 종료: %v", err)
+			logger.Warn("서버 종료", "error", err)
 		}
 	}()
 
@@ -79,23 +81,23 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 
-	log.Println("[INFO] 서버 종료 시그널 수신, 정리 중...")
+	logger.Info("서버 종료 시그널 수신, 정리 중...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := e.Shutdown(ctx); err != nil {
-		log.Printf("[ERROR] Echo 서버 종료 실패: %v", err)
+		logger.Error("Echo 서버 종료 실패", "error", err)
 	}
 
 	for _, nc := range ncPool {
 		if nc != nil && nc.IsConnected() {
 			if err := nc.Drain(); err != nil {
-				log.Printf("[WARN] NATS 연결 종료 오류: %v", err)
+				logger.Warn("NATS 연결 종료 오류", "error", err)
 			}
 			nc.Close()
 		}
 	}
-	log.Println("[INFO] 서버 정상 종료 완료")
+	logger.Info("서버 정상 종료 완료")
 }
 
 func makeNATSOptions(connName string) []nats.Option {
@@ -107,14 +109,14 @@ func makeNATSOptions(connName string) []nats.Option {
 		nats.MaxPingsOutstanding(3),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
 			natsReconnects.WithLabelValues(connName).Inc()
-			log.Printf("[INFO] [%s] 재연결 성공: %s", connName, nc.ConnectedUrl())
+			logger.Info("NATS 재연결 성공", "conn", connName, "url", nc.ConnectedUrl())
 		}),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
 			natsDisconnects.WithLabelValues(connName).Inc()
-			log.Printf("[WARN] [%s] 연결 끊김: %v", connName, err)
+			logger.Warn("NATS 연결 끊김", "conn", connName, "error", err)
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {
-			log.Printf("[ERROR] [%s] 모든 재연결 실패. 연결 종료됨.", connName)
+			logger.Error("NATS 모든 재연결 실패", "conn", connName)
 		}),
 	}
 }
@@ -125,13 +127,13 @@ func ActionRouter(c echo.Context) error {
 
 	switch action {
 	case "createTopic":
-		return createTopicHandler(js)(c)
+		return api.CreateTopicHandler(js)(c)
 	case "deleteTopic":
-		return deleteTopicHandler(js)(c)
+		return api.DeleteTopicHandler(js)(c)
 	case "listTopics":
-		return listTopicsHandler(js)(c)
+		return api.ListTopicsHandler(js)(c)
 	case "publish":
-		return publishHandler(js)(c)
+		return api.PublishHandler(js)(c)
 	default:
 		return c.String(400, "invalid Action")
 	}
@@ -144,30 +146,28 @@ func pickJetStream() nats.JetStreamContext {
 		js := jsPool[idx]
 
 		if nc == nil || nc.IsClosed() || !nc.IsConnected() {
-			log.Printf("[WARN] 연결 %d 비정상, 재연결 시도 중...", idx)
+			logger.Warn("JetStream 연결 비정상", "index", idx)
 			connName := fmt.Sprintf("SNS-API-Conn-%d", idx)
 			opts := makeNATSOptions(connName)
 
 			newNc, err := nats.Connect(nats.DefaultURL, opts...)
 			if err != nil {
-				log.Printf("[ERROR] 연결 %d 재연결 실패: %v", idx, err)
+				logger.Error("재연결 실패", "index", idx, "error", err)
 				continue
 			}
 			ncPool[idx] = newNc
 
 			newJs, err := newNc.JetStream()
 			if err != nil {
-				log.Printf("[ERROR] JetStreamContext 재생성 실패: %v", err)
+				logger.Error("JetStreamContext 재생성 실패", "index", idx, "error", err)
 				continue
 			}
 			jsPool[idx] = newJs
-
-			log.Printf("[INFO] 연결 %d 재연결 성공", idx)
+			logger.Info("JetStream 재연결 성공", "index", idx)
 			return newJs
 		}
 		return js
 	}
-
-	log.Println("[ERROR] 사용 가능한 JetStream 연결 없음. 기본 연결 사용")
+	logger.Error("사용 가능한 JetStream 연결 없음, 기본 연결 반환")
 	return jsPool[0]
 }

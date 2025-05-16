@@ -4,6 +4,10 @@ go mod init nats
 go get github.com/nats-io/nats.go
 ```
 ## main.go 
+```bash
+#실행
+go run ./cmd/main.go
+```
 ## topic.go
 ```bash
 #토픽생성

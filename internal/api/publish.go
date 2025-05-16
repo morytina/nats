@@ -1,8 +1,10 @@
-package main
+package api
 
 import (
 	"net/http"
 	"strconv"
+
+	"nats/internal/logger"
 
 	"github.com/labstack/echo/v4"
 	"github.com/nats-io/nats.go"
@@ -18,10 +20,11 @@ type PublishResponse struct {
 	MessageID string `json:"messageId"`
 }
 
-func publishHandler(js nats.JetStreamContext) echo.HandlerFunc {
+func PublishHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var req PublishRequest
 		if err := c.Bind(&req); err != nil {
+			logger.Warn("메시지 요청 파싱 실패", "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
@@ -36,12 +39,13 @@ func publishHandler(js nats.JetStreamContext) echo.HandlerFunc {
 
 		ack, err := js.Publish(subject, []byte(req.Message))
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to publish: " + err.Error()})
+			logger.Error("메시지 발행 실패", "error", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		resp := PublishResponse{
+		logger.Info("메시지 발행 성공", "subject", subject, "sequence", ack.Sequence)
+		return c.JSON(http.StatusOK, PublishResponse{
 			MessageID: strconv.FormatUint(ack.Sequence, 10),
-		}
-		return c.JSON(http.StatusOK, resp)
+		})
 	}
 }

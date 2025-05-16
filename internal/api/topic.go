@@ -1,8 +1,10 @@
-package main
+package api
 
 import (
 	"net/http"
 	"time"
+
+	"nats/internal/logger"
 
 	"github.com/labstack/echo/v4"
 	"github.com/nats-io/nats.go"
@@ -21,10 +23,11 @@ type ListTopicsResponse struct {
 	Topics []string `json:"topics"`
 }
 
-func createTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
+func CreateTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var req CreateTopicRequest
 		if err := c.Bind(&req); err != nil {
+			logger.Warn("요청 파싱 실패", "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
@@ -48,47 +51,43 @@ func createTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 
 		_, err := js.AddStream(streamCfg)
 		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": "failed to create stream: " + err.Error(),
-			})
+			logger.Error("스트림 생성 실패", "error", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		resp := CreateTopicResponse{
+		logger.Info("스트림 생성 성공", "topic", req.Name)
+		return c.JSON(http.StatusOK, CreateTopicResponse{
 			TopicArn: "srn:scp:sns:kr-cp-1:100000000000:" + req.Name,
-		}
-		return c.JSON(http.StatusOK, resp)
+		})
 	}
 }
 
-func deleteTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
+func DeleteTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
-		topicName := c.QueryParam("name")
-		if topicName == "" {
+		name := c.QueryParam("name")
+		if name == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing 'name' parameter"})
 		}
 
-		err := js.DeleteStream(topicName)
-		if err != nil {
-			return c.JSON(http.StatusInternalServerError, map[string]string{
-				"error": "failed to delete stream: " + err.Error(),
-			})
+		if err := js.DeleteStream(name); err != nil {
+			logger.Error("스트림 삭제 실패", "error", err)
+			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
+		logger.Info("스트림 삭제 성공", "topic", name)
 		return c.String(http.StatusOK, "Topic deleted successfully")
 	}
 }
 
-func listTopicsHandler(js nats.JetStreamContext) echo.HandlerFunc {
+func ListTopicsHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		var topics []string
 		lister := js.StreamNames()
-
 		for name := range lister {
 			arn := "srn:scp:sns:kr-cp-1:100000000000:" + name
 			topics = append(topics, arn)
 		}
-
-		resp := ListTopicsResponse{Topics: topics}
-		return c.JSON(http.StatusOK, resp)
+		logger.Info("리스트 반환", "count", len(topics))
+		return c.JSON(http.StatusOK, ListTopicsResponse{Topics: topics})
 	}
 }
