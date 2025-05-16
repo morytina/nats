@@ -1,10 +1,12 @@
 package logger
 
 import (
+	"context"
 	"strings"
 
 	"nats/internal/config"
 
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -25,7 +27,7 @@ const (
 // Init initializes the global logger using configs/config.yaml.
 // The caller field shows the location of logger.Info(), etc.
 func Init() {
-	const configPath = "configs/config.yaml" // ← 경로 변경됨
+	const configPath = "configs/config.yaml"
 
 	cfg, err := config.LoadConfig(configPath)
 	if err != nil {
@@ -79,13 +81,36 @@ func initWithLevel(level LogLevel) {
 	}
 
 	log = baseLogger.
-		WithOptions(zap.AddCallerSkip(1)). // caller 위치를 외부 호출자로 보정
+		WithOptions(zap.AddCallerSkip(1)).
 		Sugar()
 }
 
-// Global logging methods
-func Debug(msg string, kv ...interface{}) { log.Debugw(msg, kv...) }
-func Info(msg string, kv ...interface{})  { log.Infow(msg, kv...) }
-func Warn(msg string, kv ...interface{})  { log.Warnw(msg, kv...) }
-func Error(msg string, kv ...interface{}) { log.Errorw(msg, kv...) }
-func Fatal(msg string, kv ...interface{}) { log.Fatalw(msg, kv...) }
+// Context-required logging methods
+func Debug(ctx context.Context, msg string, kv ...interface{}) {
+	log.Debugw(msg, convertToFields(ctx, kv...)...)
+}
+func Info(ctx context.Context, msg string, kv ...interface{}) {
+	log.Infow(msg, convertToFields(ctx, kv...)...)
+}
+func Warn(ctx context.Context, msg string, kv ...interface{}) {
+	log.Warnw(msg, convertToFields(ctx, kv...)...)
+}
+func Error(ctx context.Context, msg string, kv ...interface{}) {
+	log.Errorw(msg, convertToFields(ctx, kv...)...)
+}
+func Fatal(ctx context.Context, msg string, kv ...interface{}) {
+	log.Fatalw(msg, convertToFields(ctx, kv...)...)
+}
+
+func convertToFields(ctx context.Context, kv ...interface{}) []interface{} {
+	fields := make([]interface{}, 0, len(kv)+4)
+	fields = append(fields, kv...)
+
+	if spanCtx := trace.SpanContextFromContext(ctx); spanCtx.IsValid() {
+		fields = append(fields,
+			"trace_id", spanCtx.TraceID().String(),
+			"span_id", spanCtx.SpanID().String(),
+		)
+	}
+	return fields
+}

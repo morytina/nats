@@ -9,7 +9,7 @@ import (
 type LoggerConfig struct {
 	Region string `yaml:"region"`
 	Env    string `yaml:"env"`
-	Level  string `yaml:"level"` // "debug", "info", etc.
+	Level  string `yaml:"logging"` // "debug", "info", etc.
 }
 
 func LoadConfig(path string) (*LoggerConfig, error) {

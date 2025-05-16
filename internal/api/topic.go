@@ -25,9 +25,11 @@ type ListTopicsResponse struct {
 
 func CreateTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
 		var req CreateTopicRequest
 		if err := c.Bind(&req); err != nil {
-			logger.Warn("요청 파싱 실패", "error", err)
+			logger.Warn(ctx, "요청 파싱 실패", "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
@@ -51,11 +53,11 @@ func CreateTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 
 		_, err := js.AddStream(streamCfg)
 		if err != nil {
-			logger.Error("스트림 생성 실패", "error", err)
+			logger.Error(ctx, "스트림 생성 실패", "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		logger.Info("스트림 생성 성공", "topic", req.Name)
+		logger.Info(ctx, "스트림 생성 성공", "topic", req.Name)
 		return c.JSON(http.StatusOK, CreateTopicResponse{
 			TopicArn: "srn:scp:sns:kr-cp-1:100000000000:" + req.Name,
 		})
@@ -64,30 +66,35 @@ func CreateTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 
 func DeleteTopicHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
 		name := c.QueryParam("name")
 		if name == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing 'name' parameter"})
 		}
 
 		if err := js.DeleteStream(name); err != nil {
-			logger.Error("스트림 삭제 실패", "error", err)
+			logger.Error(ctx, "스트림 삭제 실패", "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		logger.Info("스트림 삭제 성공", "topic", name)
+		logger.Info(ctx, "스트림 삭제 성공", "topic", name)
 		return c.String(http.StatusOK, "Topic deleted successfully")
 	}
 }
 
 func ListTopicsHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
 		var topics []string
 		lister := js.StreamNames()
 		for name := range lister {
 			arn := "srn:scp:sns:kr-cp-1:100000000000:" + name
 			topics = append(topics, arn)
 		}
-		logger.Info("리스트 반환", "count", len(topics))
+
+		logger.Info(ctx, "리스트 반환", "count", len(topics))
 		return c.JSON(http.StatusOK, ListTopicsResponse{Topics: topics})
 	}
 }

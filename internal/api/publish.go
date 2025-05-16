@@ -22,9 +22,11 @@ type PublishResponse struct {
 
 func PublishHandler(js nats.JetStreamContext) echo.HandlerFunc {
 	return func(c echo.Context) error {
+		ctx := c.Request().Context()
+
 		var req PublishRequest
 		if err := c.Bind(&req); err != nil {
-			logger.Warn("메시지 요청 파싱 실패", "error", err)
+			logger.Warn(ctx, "메시지 요청 파싱 실패", "error", err)
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
@@ -39,11 +41,11 @@ func PublishHandler(js nats.JetStreamContext) echo.HandlerFunc {
 
 		ack, err := js.Publish(subject, []byte(req.Message))
 		if err != nil {
-			logger.Error("메시지 발행 실패", "error", err)
+			logger.Error(ctx, "메시지 발행 실패", "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		logger.Info("메시지 발행 성공", "subject", subject, "sequence", ack.Sequence)
+		logger.Info(ctx, "메시지 발행 성공", "subject", subject, "sequence", ack.Sequence)
 		return c.JSON(http.StatusOK, PublishResponse{
 			MessageID: strconv.FormatUint(ack.Sequence, 10),
 		})
