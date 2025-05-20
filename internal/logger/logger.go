@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"nats/internal/config"
+	"nats/internal/middleware"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
@@ -27,14 +28,7 @@ const (
 // Init initializes the global logger using configs/config.yaml.
 // The caller field shows the location of logger.Info(), etc.
 func Init() {
-	const configPath = "configs/config.yaml"
-
-	cfg, err := config.LoadConfig(configPath)
-	if err != nil {
-		panic("logger config load error: " + err.Error())
-	}
-
-	initWithLevel(parseLevel(cfg.Level))
+	initWithLevel(parseLevel(config.Root.Log.Level))
 }
 
 func parseLevel(str string) LogLevel {
@@ -111,6 +105,10 @@ func convertToFields(ctx context.Context, kv ...interface{}) []interface{} {
 			"trace_id", spanCtx.TraceID().String(),
 			"span_id", spanCtx.SpanID().String(),
 		)
+	}
+
+	if reqID := middleware.GetRequestID(ctx); reqID != "" {
+		fields = append(fields, "request_id", reqID)
 	}
 	return fields
 }

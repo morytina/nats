@@ -10,16 +10,16 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/propagation"
 
 	"nats/internal/api"
+	"nats/internal/config"
+	icon "nats/internal/context"
 	"nats/internal/logger"
-	"nats/internal/tracing"
+	emiddle "nats/internal/middleware"
 )
 
 const (
@@ -42,7 +42,8 @@ var (
 )
 
 func main() {
-	tracing.InitTracer()
+	icon.InitTracer()
+	config.Init()
 	logger.Init()
 
 	prometheus.MustRegister(natsReconnects)
@@ -71,17 +72,7 @@ func main() {
 	}
 
 	e := echo.New()
-	e.Use(middleware.Logger())
-	e.Use(middleware.Recover())
-	// traceparent 미들웨어
-	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
-			ctx := c.Request().Context()
-			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(c.Request().Header))
-			c.SetRequest(c.Request().WithContext(ctx))
-			return next(c)
-		}
-	})
+	emiddle.AttachMiddlewares(e)
 
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
 	e.Any("/", ActionRouter)
