@@ -13,7 +13,6 @@ import (
 	"github.com/nats-io/nats.go"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"go.opentelemetry.io/otel"
 
 	"nats/internal/api"
 	"nats/internal/config"
@@ -78,10 +77,10 @@ func main() {
 	e.Any("/", ActionRouter)
 
 	go func() {
-		logger.Info(ctx, "API 서버 실행 중", "url", "http://localhost:8080")
 		if err := e.Start(":8080"); err != nil {
 			logger.Warn(ctx, "서버 종료", "error", err)
 		}
+		logger.Info(ctx, "API 서버 실행 중", "url", "http://localhost:8080")
 	}()
 
 	stop := make(chan os.Signal, 1)
@@ -132,22 +131,12 @@ func ActionRouter(c echo.Context) error {
 	js := pickJetStream()
 	action := c.QueryParam("Action")
 
-	// ⚠️ 개발용: trace 시작
-	reqCtx := c.Request().Context()
-	tr := otel.Tracer("sns-api")
-	ctx, span := tr.Start(reqCtx, action)
-	defer span.End()
-
-	// 요청에 새로운 context 주입 (핵심)
-	c.SetRequest(c.Request().WithContext(ctx))
-
 	switch action {
 	case "createTopic":
 		return api.CreateTopicHandler(js)(c)
 	case "deleteTopic":
 		return api.DeleteTopicHandler(js)(c)
 	case "listTopics":
-		logger.Info(ctx, "listTopics 호출")
 		return api.ListTopicsHandler(js)(c)
 	case "publish":
 		return api.PublishHandler(js)(c)
