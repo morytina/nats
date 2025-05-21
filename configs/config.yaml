@@ -2,3 +2,5 @@ region: kr-west1
 env: dev2
 log:
   level: debug
+nats:
+  connPoolCount: 5

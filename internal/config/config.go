@@ -15,11 +15,15 @@ type Config struct {
 	Region string       `yaml:"region"`
 	Env    string       `yaml:"env"`
 	Log    LoggerConfig `yaml:"log"`
+	Nats   NatsConfig   `yaml:"nats"`
 }
 
-// 로깅 관련 설정 구조체
 type LoggerConfig struct {
 	Level string `yaml:"level"` // debug, info, warn, error, etc.
+}
+
+type NatsConfig struct {
+	ConnPoolCnt int `yaml:"connPoolCount"`
 }
 
 func Init() error {
@@ -36,11 +40,9 @@ func loadConfig(path string) (*Config, error) {
 	if err != nil {
 		return nil, err
 	}
-
 	var cfg Config
 	if err := yaml.Unmarshal(data, &cfg); err != nil {
 		return nil, err
 	}
-
 	return &cfg, nil
 }
