@@ -1,10 +1,10 @@
-package repository
+package nats
 
 import (
 	"context"
 	"fmt"
-	"nats/internal/config"
-	"nats/internal/logger"
+	"nats/pkg/config"
+	"nats/pkg/logger"
 	"sync/atomic"
 	"time"
 

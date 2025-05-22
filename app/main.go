@@ -10,12 +10,12 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"nats/internal/api"
-	"nats/internal/config"
 	icon "nats/internal/context"
-	"nats/internal/logger"
+	"nats/internal/handler"
+	natsrepo "nats/internal/infra/nats"
 	emiddle "nats/internal/middleware"
-	"nats/internal/repository"
+	"nats/pkg/config"
+	"nats/pkg/logger"
 )
 
 func main() {
@@ -23,18 +23,18 @@ func main() {
 	icon.InitTracer()
 	config.Init()
 	logger.Init()
-	repository.InitNatsPool(ctx)
+	natsrepo.InitNatsPool(ctx)
 
 	e := echo.New()
 	emiddle.AttachMiddlewares(e)
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
-	e.Any("/", api.ActionRouter) // 직접 핸들러로 분리 가능
+	e.Any("/", handler.ActionRouter) // 직접 핸들러로 분리 가능
 
 	go func() {
+		logger.Info(ctx, "API 서버 실행 중", "url", "http://localhost:8080")
 		if err := e.Start(":8080"); err != nil {
 			logger.Warn(ctx, "서버 종료", "error", err)
 		}
-		logger.Info(ctx, "API 서버 실행 중", "url", "http://localhost:8080")
 	}()
 
 	stop := make(chan os.Signal, 1)
@@ -49,7 +49,7 @@ func main() {
 		logger.Error(ctx, "Echo 서버 종료 실패", "error", err)
 	}
 
-	repository.ShutdownNatsPool(ctx)
+	natsrepo.ShutdownNatsPool(ctx)
 
 	logger.Info(ctx, "서버 정상 종료 완료")
 }

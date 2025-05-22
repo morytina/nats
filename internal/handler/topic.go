@@ -1,10 +1,10 @@
-package api
+package handler
 
 import (
 	"net/http"
 	"time"
 
-	"nats/internal/logger"
+	"nats/pkg/logger"
 
 	"github.com/labstack/echo/v4"
 	"github.com/nats-io/nats.go"

@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"nats/internal/config"
 	"nats/internal/middleware"
+	"nats/pkg/config"
 
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
