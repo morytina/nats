@@ -2,12 +2,11 @@ package handler
 
 import (
 	"net/http"
-	"strconv"
 
+	"nats/internal/service"
 	"nats/pkg/logger"
 
 	"github.com/labstack/echo/v4"
-	"github.com/nats-io/nats.go"
 )
 
 type PublishRequest struct {
@@ -20,7 +19,7 @@ type PublishResponse struct {
 	MessageID string `json:"messageId"`
 }
 
-func PublishHandler(js nats.JetStreamContext) echo.HandlerFunc {
+func PublishHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
@@ -30,24 +29,13 @@ func PublishHandler(js nats.JetStreamContext) echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
-		if req.TopicName == "" || req.Message == "" {
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing required fields"})
-		}
-
-		subject := req.Subject
-		if subject == "" {
-			subject = req.TopicName
-		}
-
-		ack, err := js.Publish(subject, []byte(req.Message))
+		msgID, err := service.PublishMessage(ctx, req.TopicName, req.Message, req.Subject)
 		if err != nil {
 			logger.Error(ctx, "메시지 발행 실패", "error", err)
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		logger.Info(ctx, "메시지 발행 성공", "subject", subject, "sequence", ack.Sequence)
-		return c.JSON(http.StatusOK, PublishResponse{
-			MessageID: strconv.FormatUint(ack.Sequence, 10),
-		})
+		logger.Info(ctx, "메시지 발행 성공", "messageId", msgID)
+		return c.JSON(http.StatusOK, PublishResponse{MessageID: msgID})
 	}
 }

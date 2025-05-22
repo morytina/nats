@@ -1,15 +1,13 @@
 package handler
 
 import (
-	natsrepo "nats/internal/infra/nats"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
-	"github.com/nats-io/nats.go"
 )
 
 // 핸들러 매핑 테이블
-var actionHandlers = map[string]func(nats.JetStreamContext) echo.HandlerFunc{
+var actionHandlers = map[string]func() echo.HandlerFunc{
 	"createTopic": CreateTopicHandler,
 	"deleteTopic": DeleteTopicHandler,
 	"listTopics":  ListTopicsHandler,
@@ -17,12 +15,9 @@ var actionHandlers = map[string]func(nats.JetStreamContext) echo.HandlerFunc{
 }
 
 func ActionRouter(c echo.Context) error {
-	ctx := c.Request().Context()
-	js := natsrepo.GetJetStream(ctx)
 	action := c.QueryParam("Action")
-
 	if handlerFunc, ok := actionHandlers[action]; ok {
-		return handlerFunc(js)(c)
+		return handlerFunc()(c)
 	}
 	return c.String(http.StatusBadRequest, "invalid Action")
 }
