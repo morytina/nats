@@ -27,7 +27,7 @@ type NatsConfig struct {
 }
 
 func Init() error {
-	loaded, err := loadConfig(configPath)
+	loaded, err := LoadConfig(configPath)
 	if err != nil {
 		panic("config load error: " + err.Error())
 	}
@@ -35,7 +35,7 @@ func Init() error {
 	return nil
 }
 
-func loadConfig(path string) (*Config, error) {
+func LoadConfig(path string) (*Config, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err

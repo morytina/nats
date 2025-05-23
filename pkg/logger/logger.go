@@ -4,7 +4,6 @@ import (
 	"context"
 	"strings"
 
-	"nats/internal/middleware"
 	"nats/pkg/config"
 
 	"go.opentelemetry.io/otel/trace"
@@ -24,6 +23,10 @@ const (
 	LevelFatal LogLevel = LogLevel(zapcore.FatalLevel)
 	LevelPanic LogLevel = LogLevel(zapcore.PanicLevel)
 )
+
+type CtxKey string
+
+const RequestIDKey CtxKey = "request_id"
 
 // Init initializes the global logger using configs/config.yaml.
 // The caller field shows the location of logger.Info(), etc.
@@ -107,7 +110,7 @@ func convertToFields(ctx context.Context, kv ...interface{}) []interface{} {
 		)
 	}
 
-	if reqID := middleware.GetRequestID(ctx); reqID != "" {
+	if reqID, ok := ctx.Value(RequestIDKey).(string); ok {
 		fields = append(fields, "request_id", reqID)
 	}
 	return fields

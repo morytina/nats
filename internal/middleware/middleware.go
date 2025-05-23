@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"nats/pkg/logger"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -9,8 +10,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-
-	icon "nats/internal/context"
 )
 
 // AttachMiddlewares sets up common middlewares to the Echo instance
@@ -49,14 +48,5 @@ func AttachMiddlewares(e *echo.Echo) {
 
 // context에 request_id 저장
 func contextWithRequestID(ctx context.Context, reqID string) context.Context {
-	return context.WithValue(ctx, icon.RequestIDKey, reqID)
-}
-
-// GetRequestID 는 context에서 request_id를 꺼내는 함수입니다.
-// logger.go 등에서 사용됩니다.
-func GetRequestID(ctx context.Context) string {
-	if id, ok := ctx.Value(icon.RequestIDKey).(string); ok {
-		return id
-	}
-	return ""
+	return context.WithValue(ctx, logger.RequestIDKey, reqID)
 }
