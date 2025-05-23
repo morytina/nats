@@ -11,8 +11,8 @@ import (
 
 func main() {
 	const connNum = 1
-	const goroutineNum = 10000
-	const messagesPerGoroutine = 10
+	const goroutineNum = 100000
+	const messagesPerGoroutine = 1
 	const subject = "sns.wrk.test"
 
 	ncPool := make([]*nats.Conn, connNum)
@@ -20,7 +20,7 @@ func main() {
 
 	for i := 0; i < connNum; i++ {
 		nc, _ := nats.Connect(nats.DefaultURL)
-		js, _ := nc.JetStream(nats.PublishAsyncMaxPending(65536))
+		js, _ := nc.JetStream(nats.PublishAsyncMaxPending(100000)) // 65536 -> 100000 늘렸더니 10만 gorutine도 error 없이버팀
 		ncPool[i] = nc
 		jsPool[i] = js
 	}
@@ -54,7 +54,7 @@ func main() {
 		select {
 		case <-js.PublishAsyncComplete():
 			fmt.Println("complete")
-		case <-time.After(5 * time.Second):
+		case <-time.After(10 * time.Second): // 중요함, 오버가되면 다 처리하지 못하고 끝냄
 			fmt.Println("Did not resolve in time")
 		}
 	}

@@ -14,6 +14,7 @@ func main() {
 	const goroutineNum = 10000
 	const messagesPerGoroutine = 10
 	const subject = "sns.wrk.test"
+
 	ncPool := make([]*nats.Conn, connNum)
 	jsPool := make([]nats.JetStreamContext, connNum)
 
