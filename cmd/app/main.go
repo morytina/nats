@@ -13,6 +13,7 @@ import (
 	icon "nats/internal/context"
 	"nats/internal/handler"
 	natsrepo "nats/internal/infra/nats"
+	"nats/internal/infra/valkey"
 	emiddle "nats/internal/middleware"
 	"nats/pkg/config"
 	"nats/pkg/logger"
@@ -23,7 +24,9 @@ func main() {
 	icon.InitTracer()
 	config.Init()
 	logger.Init()
+
 	natsrepo.InitNatsPool(ctx)
+	valkey.InitValkeyClient(ctx)
 
 	e := echo.New()
 	emiddle.AttachMiddlewares(e)
@@ -50,6 +53,7 @@ func main() {
 	}
 
 	natsrepo.ShutdownNatsPool(ctx)
+	valkey.ShutdownValkeyClient(ctx)
 
 	logger.Info(ctx, "서버 정상 종료 완료")
 }
