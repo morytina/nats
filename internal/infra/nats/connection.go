@@ -50,7 +50,7 @@ func InitNatsPool(ctx context.Context) {
 		}
 		ncPool[i] = nc
 
-		js, err := nc.JetStream()
+		js, err := nc.JetStream(nats.PublishAsyncMaxPending(100000)) // 10만 TPS 위한 설정
 		if err != nil {
 			logger.Fatal(ctx, "JetStream 사용 실패", "index", i, "error", err)
 		}
