@@ -44,6 +44,10 @@ curl -X POST "http://localhost:8080/?Action=publish" \
         "message": "회원가입 이벤트 발생",
         "subject": "sns.wrk.test"
       }'
+
+# publish status check
+curl "http://localhost:8080/?Action=publishCheck&messageId=<message-id>"
+
 ```
 
 ### 부하테스트를 위한 linux 설정 확인
@@ -73,7 +77,7 @@ wrk -t10 -c2000 -d10s http://localhost:8080/?Action=listTopics
 wrk -t50 -c7000 -d10s -s ~/vscode/nats/lua/publish.lua http://localhost:8080/?Action=publish
 ```
 
-# nats-server
+# NATS-SERVER
 ## 실행
 ```nats-server -c nats-server.conf -V```
 
@@ -122,4 +126,18 @@ nats stream info <stream_name>
 nats consumer ls <stream_name>
 # consumer 정보
 nats consumer info <stream_name> <consumer_name>
+```
+
+# VALKEY
+```bash
+# docker 로 실행
+docker run -d --name valkey -p 6379:6379 valkey/valkey
+# 이후부터 실행/정지
+docker start valkey
+docker stop valkey
+# cli로 확인
+docker exec -it valkey valkey-cli
+ping
+set foo bar
+get foo
 ```
