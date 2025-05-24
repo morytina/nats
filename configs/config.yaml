@@ -4,3 +4,7 @@ log:
   level: debug
 nats:
   connPoolCount: 5
+valkey:
+  addr: "localhost:6379"
+  password: ""
+  db: 0

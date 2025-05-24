@@ -16,6 +16,7 @@ type Config struct {
 	Env    string       `yaml:"env"`
 	Log    LoggerConfig `yaml:"log"`
 	Nats   NatsConfig   `yaml:"nats"`
+	Valkey ValkeyConfig `yaml:"valkey"`
 }
 
 type LoggerConfig struct {
@@ -24,6 +25,12 @@ type LoggerConfig struct {
 
 type NatsConfig struct {
 	ConnPoolCnt int `yaml:"connPoolCount"`
+}
+
+type ValkeyConfig struct {
+	Addr     string `yaml:"addr"`
+	Password string `yaml:"password"`
+	DB       int    `yaml:"db"`
 }
 
 func Init() error {
