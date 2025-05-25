@@ -50,7 +50,7 @@ func CheckAckStatusHandler() echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing message id"})
 		}
 
-		status, err := service.CheckAckStatus(id)
+		status, err := service.CheckAckStatus(ctx, id)
 		if err != nil {
 			logger.Warn(ctx, "ack 상태 조회 실패", "id", id, "error", err)
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "message id not found"})

@@ -49,6 +49,7 @@ func InitNatsPool(ctx context.Context) {
 		}
 		jsPool[i] = js
 	}
+	logger.Info(ctx, "NATS POOL 생성 성공", "pool", pool)
 
 	SetJetStreamClient(&defaultJetStreamClient{}) // 인터페이스 주입
 }
