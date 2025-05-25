@@ -9,6 +9,7 @@ import (
 
 	natsrepo "nats/internal/infra/nats"
 	valkeyrepo "nats/internal/infra/valkey"
+	"nats/pkg/logger"
 
 	"github.com/google/uuid"
 )
@@ -112,5 +113,10 @@ func storeAckResult(ctx context.Context, id string, result AckResult) error {
 	if err != nil {
 		return err
 	}
-	return valkeyrepo.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
+
+	err = valkeyrepo.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
+	if err != nil {
+		logger.Warn(ctx, "ACK 상태 저장 실패", "id", id, "error", err)
+	}
+	return err
 }

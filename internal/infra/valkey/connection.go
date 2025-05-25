@@ -13,7 +13,7 @@ import (
 
 var clientInstance Client // 인터페이스로 선언
 
-func InitValkeyClient(ctx context.Context) {
+func InitValkeyClient(ctx context.Context) error {
 	addr := config.Root.Valkey.Addr
 	password := config.Root.Valkey.Password
 	db := config.Root.Valkey.DB
@@ -31,7 +31,8 @@ func InitValkeyClient(ctx context.Context) {
 
 	if err := rawClient.Ping(ctx).Err(); err != nil {
 		metrics.ValkeyFailures.Inc()
-		logger.Fatal(ctx, "Valkey 연결 실패", "addr", addr, "error", err)
+		logger.Error(ctx, "Valkey 연결 실패", "addr", addr, "error", err)
+		return err
 	}
 
 	metrics.ValkeyReconnects.Inc()
@@ -39,6 +40,7 @@ func InitValkeyClient(ctx context.Context) {
 
 	// 인터페이스 구현체로 등록
 	clientInstance = NewRedisClient(rawClient)
+	return nil
 }
 
 func GetClient() Client {

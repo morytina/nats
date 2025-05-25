@@ -28,7 +28,10 @@ func main() {
 	traces.Init()
 
 	natsrepo.InitNatsPool(ctx)
-	valkey.InitValkeyClient(ctx)
+	if err := valkey.InitValkeyClient(ctx); err != nil {
+		natsrepo.ShutdownNatsPool(ctx) // 생성된 커넥션 정리
+		os.Exit(1)
+	}
 
 	e := echo.New()
 	emiddle.AttachMiddlewares(e)
