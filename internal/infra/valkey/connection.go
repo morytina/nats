@@ -4,34 +4,16 @@ import (
 	"context"
 	"time"
 
+	"nats/internal/context/metrics"
 	"nats/pkg/config"
 	"nats/pkg/logger"
 
 	"github.com/go-redis/redis/v8"
-	"github.com/prometheus/client_golang/prometheus"
 )
 
-var (
-	clientInstance Client // 인터페이스로 선언
-
-	valkeyReconnects = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "valkey_reconnect_total",
-			Help: "총 Valkey 재연결 횟수",
-		},
-	)
-	valkeyFailures = prometheus.NewCounter(
-		prometheus.CounterOpts{
-			Name: "valkey_connection_failures_total",
-			Help: "Valkey 연결 실패 횟수",
-		},
-	)
-)
+var clientInstance Client // 인터페이스로 선언
 
 func InitValkeyClient(ctx context.Context) {
-	prometheus.MustRegister(valkeyReconnects)
-	prometheus.MustRegister(valkeyFailures)
-
 	addr := config.Root.Valkey.Addr
 	password := config.Root.Valkey.Password
 	db := config.Root.Valkey.DB
@@ -48,11 +30,11 @@ func InitValkeyClient(ctx context.Context) {
 	})
 
 	if err := rawClient.Ping(ctx).Err(); err != nil {
-		valkeyFailures.Inc()
+		metrics.ValkeyFailures.Inc()
 		logger.Fatal(ctx, "Valkey 연결 실패", "addr", addr, "error", err)
 	}
 
-	valkeyReconnects.Inc()
+	metrics.ValkeyReconnects.Inc()
 	logger.Info(ctx, "Valkey 연결 성공", "addr", addr)
 
 	// 인터페이스 구현체로 등록

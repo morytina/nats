@@ -1,4 +1,4 @@
-package context
+package traces
 
 import (
 	"go.opentelemetry.io/otel"
@@ -6,7 +6,7 @@ import (
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-func InitTracer() error {
+func Init() error {
 	// exporter, err := stdouttrace.New(stdouttrace.WithPrettyPrint())
 	// if err != nil {
 	// 	return err

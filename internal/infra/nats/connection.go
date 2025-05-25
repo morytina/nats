@@ -3,23 +3,12 @@ package nats
 import (
 	"context"
 	"fmt"
+	"nats/internal/context/metrics"
 	"nats/pkg/config"
 	"nats/pkg/logger"
 	"time"
 
 	"github.com/nats-io/nats.go"
-	"github.com/prometheus/client_golang/prometheus"
-)
-
-var (
-	natsReconnects = prometheus.NewCounterVec(
-		prometheus.CounterOpts{Name: "nats_reconnect_total", Help: "총 NATS 재연결 횟수"},
-		[]string{"conn"},
-	)
-	natsDisconnects = prometheus.NewCounterVec(
-		prometheus.CounterOpts{Name: "nats_disconnect_total", Help: "총 NATS 연결 실패 횟수"},
-		[]string{"conn"},
-	)
 )
 
 func InitNatsPool(ctx context.Context) {
@@ -29,9 +18,6 @@ func InitNatsPool(ctx context.Context) {
 	}
 	ncPool = make([]*nats.Conn, pool)
 	jsPool = make([]nats.JetStreamContext, pool)
-
-	prometheus.MustRegister(natsReconnects)
-	prometheus.MustRegister(natsDisconnects)
 
 	for i := 0; i < pool; i++ {
 		connName := fmt.Sprintf("SNS-API-Conn-%d", i)
@@ -74,11 +60,11 @@ func makeNATSOptions(ctx context.Context, connName string) []nats.Option {
 		nats.PingInterval(30 * time.Second),
 		nats.MaxPingsOutstanding(3),
 		nats.ReconnectHandler(func(nc *nats.Conn) {
-			natsReconnects.WithLabelValues(connName).Inc()
+			metrics.NatsReconnects.WithLabelValues(connName).Inc()
 			logger.Info(ctx, "NATS 재연결", "conn", connName, "url", nc.ConnectedUrl())
 		}),
 		nats.DisconnectErrHandler(func(nc *nats.Conn, err error) {
-			natsDisconnects.WithLabelValues(connName).Inc()
+			metrics.NatsDisconnects.WithLabelValues(connName).Inc()
 			logger.Warn(ctx, "NATS 연결 실패", "conn", connName, "error", err)
 		}),
 		nats.ClosedHandler(func(nc *nats.Conn) {

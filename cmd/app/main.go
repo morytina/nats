@@ -10,7 +10,8 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	icon "nats/internal/context"
+	"nats/internal/context/metrics"
+	"nats/internal/context/traces"
 	"nats/internal/handler"
 	natsrepo "nats/internal/infra/nats"
 	"nats/internal/infra/valkey"
@@ -21,9 +22,10 @@ import (
 
 func main() {
 	ctx := context.Background()
-	icon.InitTracer()
 	config.Init()
 	logger.Init()
+	metrics.Init()
+	traces.Init()
 
 	natsrepo.InitNatsPool(ctx)
 	valkey.InitValkeyClient(ctx)
