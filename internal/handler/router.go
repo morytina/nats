@@ -2,6 +2,7 @@ package handler
 
 import (
 	"net/http"
+	"strconv"
 
 	"github.com/labstack/echo/v4"
 
@@ -20,8 +21,9 @@ var actionHandlers = map[string]func() echo.HandlerFunc{
 func ActionRouter(c echo.Context) error {
 	action := c.QueryParam("Action")
 	if handlerFunc, ok := actionHandlers[action]; ok {
-		metrics.ApiCallCounter.WithLabelValues(action).Inc()
-		return handlerFunc()(c)
+		err := handlerFunc()(c)
+		metrics.ApiCallCounter.WithLabelValues(action, strconv.Itoa(c.Response().Status)).Inc()
+		return err
 	}
 	return c.String(http.StatusBadRequest, "invalid Action")
 }

@@ -27,6 +27,8 @@ func main() {
 	metrics.Init()
 	traces.Init()
 
+	const apiVer = "v1"
+
 	natsrepo.InitNatsPool(ctx)
 	if err := valkey.InitValkeyClient(ctx); err != nil {
 		natsrepo.ShutdownNatsPool(ctx) // 생성된 커넥션 정리
@@ -36,7 +38,8 @@ func main() {
 	e := echo.New()
 	emiddle.AttachMiddlewares(e)
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
-	e.Any("/", handler.ActionRouter) // 직접 핸들러로 분리 가능
+	apis := e.Group(apiVer)
+	apis.Any("/", handler.ActionRouter) // 직접 핸들러로 분리 가능
 
 	go func() {
 		logger.Info(ctx, "API 서버 실행 중", "url", "http://localhost:8080")

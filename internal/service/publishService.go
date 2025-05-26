@@ -67,18 +67,19 @@ func PublishAsyncMessage(ctx context.Context, topicName, message, subject string
 	storeAckResult(ctx, id, AckResult{Status: "PENDING"})
 
 	go func() {
+		goCtx := context.Background()
 		select {
 		case ack := <-ackFuture.Ok():
 			if ack != nil {
-				storeAckResult(ctx, id, AckResult{
+				storeAckResult(goCtx, id, AckResult{
 					Status:   "ACK",
 					Sequence: ack.Sequence,
 				})
 			} else {
-				storeAckResult(ctx, id, AckResult{Status: "FAILED"})
+				storeAckResult(goCtx, id, AckResult{Status: "FAILED"})
 			}
 		case <-time.After(10 * time.Second):
-			storeAckResult(ctx, id, AckResult{Status: "TIMEOUT"})
+			storeAckResult(goCtx, id, AckResult{Status: "TIMEOUT"})
 		}
 	}()
 

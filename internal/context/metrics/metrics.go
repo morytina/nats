@@ -9,10 +9,10 @@ var (
 	// API 호출 수 측정
 	ApiCallCounter = prometheus.NewCounterVec(
 		prometheus.CounterOpts{
-			Name: "snsapi_action_handler_calls_total",
+			Name: "action_handler_calls_total",
 			Help: "Total number of API calls by action",
 		},
-		[]string{"action"},
+		[]string{"action", "status"},
 	)
 
 	// NATS 연결 상태 메트릭

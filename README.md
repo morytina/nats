@@ -26,18 +26,18 @@ subscribe 액션과 관련된 api
 ### 테스트 curl
 ```bash
 # Create API
-curl -X POST "http://localhost:8080/?Action=createTopic" \
+curl -X POST "http://localhost:8080/v1/?Action=createTopic" \
   -H "Content-Type: application/json" \
   -d '{"name": "sns-wrk-test", "subject": "sns.wrk.test"}'
  
 # Delete API
-curl -X POST "http://localhost:8080/?Action=deleteTopic&name=sns-wrk-test"
+curl -X POST "http://localhost:8080/v1/?Action=deleteTopic&name=sns-wrk-test"
 
 # List API
-curl "http://localhost:8080/?Action=listTopics"
+curl "http://localhost:8080/v1/?Action=listTopics"
 
 # publish
-curl -X POST "http://localhost:8080/?Action=publish" \
+curl -X POST "http://localhost:8080/v1/?Action=publish" \
   -H "Content-Type: application/json" \
   -d '{
         "topicName": "sns-wrk-test",
@@ -46,7 +46,7 @@ curl -X POST "http://localhost:8080/?Action=publish" \
       }'
 
 # publish status check
-curl "http://localhost:8080/?Action=publishCheck&messageId=<message-id>"
+curl "http://localhost:8080/v1/?Action=publishCheck&messageId=<message-id>"
 
 ```
 
@@ -73,8 +73,8 @@ sysctl -w net.ipv4.tcp_tw_reuse=1 # 기본이 2
 # -t: 쓰레드,  -c: 커넥션개수, -d: 테스트시간, -H: "Header: value" 로 헤더추가
 # --latency : 각 요청의 지연 통계
 # -s: <script.lua> 로 custom lua 스크립트 사용. (POST, 헤더설정)
-wrk -t10 -c2000 -d10s http://localhost:8080/?Action=listTopics
-wrk -t50 -c7000 -d10s -s ~/vscode/nats/lua/publish.lua http://localhost:8080/?Action=publish
+wrk -t10 -c2000 -d10s http://localhost:8080/v1/?Action=listTopics
+wrk -t50 -c7000 -d10s -s ~/vscode/nats/lua/publish.lua http://localhost:8080/v1/?Action=publish
 ```
 
 # NATS-SERVER
