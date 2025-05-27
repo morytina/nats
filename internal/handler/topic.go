@@ -67,6 +67,7 @@ func DeleteTopicHandler() echo.HandlerFunc {
 func ListTopicsHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		logger.Info(ctx, "ListTopicHandler trace and span check")
 
 		topics, err := service.ListTopics(ctx)
 		if err != nil {
