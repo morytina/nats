@@ -46,7 +46,7 @@ var (
 	)
 )
 
-func Init() {
+func StartMetrcis() {
 	prometheus.MustRegister(ApiCallCounter)
 	prometheus.MustRegister(NatsReconnects)
 	prometheus.MustRegister(NatsDisconnects)

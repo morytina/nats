@@ -13,10 +13,10 @@ import (
 
 var clientInstance Client // 인터페이스로 선언
 
-func InitValkeyClient(ctx context.Context) error {
-	addr := config.Root.Valkey.Addr
-	password := config.Root.Valkey.Password
-	db := config.Root.Valkey.DB
+func InitValkeyClient(ctx context.Context, cfg *config.Config) error {
+	addr := cfg.Valkey.Addr
+	password := cfg.Valkey.Password
+	db := cfg.Valkey.DB
 
 	rawClient := redis.NewClient(&redis.Options{
 		Addr:         addr,

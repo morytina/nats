@@ -11,8 +11,8 @@ import (
 	"github.com/nats-io/nats.go"
 )
 
-func InitNatsPool(ctx context.Context) {
-	if pool = config.Root.Nats.ConnPoolCnt; pool == 0 {
+func InitNatsPool(ctx context.Context, cfg *config.Config) {
+	if pool = cfg.Nats.ConnPoolCnt; pool == 0 {
 		logger.Warn(ctx, "Connection count is 0. Setting default 3.", "pool size", pool)
 		pool = 3
 	}

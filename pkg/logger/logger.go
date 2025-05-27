@@ -28,10 +28,8 @@ type CtxKey string
 
 const RequestIDKey CtxKey = "request_id"
 
-// Init initializes the global logger using configs/config.yaml.
-// The caller field shows the location of logger.Info(), etc.
-func Init() {
-	initWithLevel(parseLevel(config.Root.Log.Level))
+func InitLogger(cfg *config.Config) {
+	initWithLevel(parseLevel(cfg.Log.Level))
 }
 
 func parseLevel(str string) LogLevel {

@@ -22,15 +22,19 @@ import (
 
 func main() {
 	ctx := context.Background()
-	config.Init()
-	logger.Init()
-	metrics.Init()
-	traces.Init()
+	cfg, err := config.LoadConfig("configs/config.yaml")
+	if err != nil {
+		panic("config load failed")
+	}
+
+	logger.InitLogger(cfg)
+	metrics.StartMetrcis()
+	traces.StartTrace()
 
 	const apiVer = "v1"
 
-	natsrepo.InitNatsPool(ctx)
-	if err := valkey.InitValkeyClient(ctx); err != nil {
+	natsrepo.InitNatsPool(ctx, cfg)
+	if err := valkey.InitValkeyClient(ctx, cfg); err != nil {
 		natsrepo.ShutdownNatsPool(ctx) // 생성된 커넥션 정리
 		os.Exit(1)
 	}
