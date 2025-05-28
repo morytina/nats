@@ -5,9 +5,9 @@ import (
 	"context"
 	"time"
 
+	"nats/internal/context/logs"
 	"nats/internal/context/traces"
 	natsrepo "nats/internal/infra/nats"
-	"nats/pkg/logger"
 
 	"github.com/nats-io/nats.go"
 )
@@ -46,7 +46,7 @@ func ListTopics(ctx context.Context) ([]string, error) {
 	ctx, span := traces.StartSpan(ctx, "listopics")
 	defer span.End()
 
-	logger.Info(ctx, "ListTopics New Span test")
+	logs.InfoWithTrace(ctx, "ListTopics New Span test")
 	js := natsrepo.GetJetStream(ctx)
 
 	var topics []string
