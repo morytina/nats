@@ -90,25 +90,25 @@ func injectTracing(ctx context.Context, keyvals []interface{}) []interface{} {
 }
 
 func DebugWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).Debugw(msg, injectTracing(ctx, keyvals)...)
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Debugw(msg, injectTracing(ctx, keyvals)...)
 }
 
 func InfoWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).Infow(msg, injectTracing(ctx, keyvals)...)
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Infow(msg, injectTracing(ctx, keyvals)...)
 }
 
 func WarnWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).Warnw(msg, injectTracing(ctx, keyvals)...)
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Warnw(msg, injectTracing(ctx, keyvals)...)
 }
 
 func ErrorWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).Errorw(msg, injectTracing(ctx, keyvals)...)
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Errorw(msg, injectTracing(ctx, keyvals)...)
 }
 
 func FatalWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).Fatalw(msg, injectTracing(ctx, keyvals)...)
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Fatalw(msg, injectTracing(ctx, keyvals)...)
 }
 
 func PanicWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).Panicw(msg, injectTracing(ctx, keyvals)...)
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Panicw(msg, injectTracing(ctx, keyvals)...)
 }
