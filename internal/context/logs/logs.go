@@ -13,24 +13,27 @@ type ctxKey struct{}
 
 var loggerKey = ctxKey{}
 
-func WithLogger(ctx context.Context, logger *zap.SugaredLogger) context.Context {
+// WithLogger stores a zap.Logger in the context
+func WithLogger(ctx context.Context, logger *zap.Logger) context.Context {
 	return context.WithValue(ctx, loggerKey, logger)
 }
 
-func GetLogger(ctx context.Context) *zap.SugaredLogger {
-	if logger, ok := ctx.Value(loggerKey).(*zap.SugaredLogger); ok {
+// GetLogger retrieves a zap.Logger from the context, or returns zap.NewNop() if not found
+func GetLogger(ctx context.Context) *zap.Logger {
+	if logger, ok := ctx.Value(loggerKey).(*zap.Logger); ok {
 		return logger
 	}
-	return zap.NewNop().Sugar()
+	return zap.NewNop()
 }
 
-// 새 필드 추가된 logger로 context 갱신
-func WithFields(ctx context.Context, fields ...any) context.Context {
+// WithFields returns a new context with additional fields applied to the logger
+func WithFields(ctx context.Context, fields ...zap.Field) context.Context {
 	logger := GetLogger(ctx).With(fields...)
 	return WithLogger(ctx, logger)
 }
 
-func NewLogger(levelStr string, fields ...zap.Field) (*zap.SugaredLogger, error) {
+// NewLogger creates a base zap.Logger with optional initial fields
+func NewLogger(levelStr string, fields ...zap.Field) (*zap.Logger, error) {
 	level := parseLevel(levelStr)
 
 	cfg := zap.Config{
@@ -50,14 +53,15 @@ func NewLogger(levelStr string, fields ...zap.Field) (*zap.SugaredLogger, error)
 			EncodeCaller:   zapcore.ShortCallerEncoder,
 		},
 	}
-	coreLogger, err := cfg.Build()
+
+	baseLogger, err := cfg.Build()
 	if err != nil {
 		return nil, err
 	}
-	return coreLogger.With(fields...).Sugar(), nil
+	return baseLogger.With(fields...), nil
 }
 
-// parseLevel converts string to zapcore.Level
+// parseLevel converts a string log level into a zapcore.Level
 func parseLevel(str string) zapcore.Level {
 	switch strings.ToLower(str) {
 	case "debug":
@@ -77,38 +81,39 @@ func parseLevel(str string) zapcore.Level {
 	}
 }
 
-// injectTracing appends trace_id and span_id to keyvals if available
-func injectTracing(ctx context.Context, keyvals []interface{}) []interface{} {
+// injectTracing returns trace_id and span_id fields if available
+func injectTracing(ctx context.Context) []zap.Field {
 	spanCtx := trace.SpanContextFromContext(ctx)
-	if spanCtx.IsValid() {
-		keyvals = append(keyvals,
-			"trace_id", spanCtx.TraceID().String(),
-			"span_id", spanCtx.SpanID().String(),
-		)
+	if !spanCtx.IsValid() {
+		return nil
 	}
-	return keyvals
+	return []zap.Field{
+		zap.String("trace_id", spanCtx.TraceID().String()),
+		zap.String("span_id", spanCtx.SpanID().String()),
+	}
 }
 
-func DebugWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Debugw(msg, injectTracing(ctx, keyvals)...)
+// Logging helpers with trace injection
+func DebugWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Debug(msg, append(fields, injectTracing(ctx)...)...)
 }
 
-func InfoWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Infow(msg, injectTracing(ctx, keyvals)...)
+func InfoWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Info(msg, append(fields, injectTracing(ctx)...)...)
 }
 
-func WarnWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Warnw(msg, injectTracing(ctx, keyvals)...)
+func WarnWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Warn(msg, append(fields, injectTracing(ctx)...)...)
 }
 
-func ErrorWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Errorw(msg, injectTracing(ctx, keyvals)...)
+func ErrorWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Error(msg, append(fields, injectTracing(ctx)...)...)
 }
 
-func FatalWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Fatalw(msg, injectTracing(ctx, keyvals)...)
+func FatalWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Fatal(msg, append(fields, injectTracing(ctx)...)...)
 }
 
-func PanicWithTrace(ctx context.Context, msg string, keyvals ...interface{}) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Panicw(msg, injectTracing(ctx, keyvals)...)
+func PanicWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
+	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Panic(msg, append(fields, injectTracing(ctx)...)...)
 }

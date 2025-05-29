@@ -9,14 +9,15 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"nats/internal/context/logs"
 )
 
 // AttachMiddlewares sets up core middlewares
-func AttachMiddlewares(e *echo.Echo) {
-	// Wrap with OpenTelemetry
+func AttachMiddlewares(e *echo.Echo, baseLogger *zap.Logger) {
+	// OpenTelemetry HTTP trace wrapper
 	e.Use(echo.WrapMiddleware(func(next http.Handler) http.Handler {
 		return otelhttp.NewHandler(next, "EchoRequest")
 	}))
@@ -25,30 +26,30 @@ func AttachMiddlewares(e *echo.Echo) {
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
 
-	// Inject request_id, trace_id, span_id into context + logger
+	// Inject trace_id, span_id, request_id into context + logger
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			req := c.Request()
 			ctx := req.Context()
 
-			// Get or generate request_id
+			// Extract trace context from incoming request headers
+			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(req.Header))
+			spanCtx := trace.SpanContextFromContext(ctx)
+
+			// Get or generate request ID
 			requestID := c.Response().Header().Get(echo.HeaderXRequestID)
 			if requestID == "" {
 				requestID = uuid.NewString()
 			}
 
-			// Extract trace context
-			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(req.Header))
-
-			// Create logger with fields
-			logger, err := logs.NewLogger("info",
+			// Build enriched logger
+			logger := baseLogger.With(
 				zap.String("request_id", requestID),
+				zap.String("trace_id", spanCtx.TraceID().String()),
+				zap.String("span_id", spanCtx.SpanID().String()),
 			)
-			if err != nil {
-				logger = zap.NewNop().Sugar()
-			}
 
-			// Inject logger into context
+			// Store logger in context
 			ctx = logs.WithLogger(ctx, logger)
 			c.SetRequest(req.WithContext(ctx))
 

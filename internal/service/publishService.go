@@ -12,6 +12,7 @@ import (
 	valkeyrepo "nats/internal/infra/valkey"
 
 	"github.com/google/uuid"
+	"go.uber.org/zap"
 )
 
 type AckResult struct {
@@ -68,17 +69,22 @@ func PublishAsyncMessage(ctx context.Context, topicName, message, subject string
 
 	go func() {
 		goCtx := context.Background()
+		logger := logs.GetLogger(goCtx)
+
 		select {
 		case ack := <-ackFuture.Ok():
 			if ack != nil {
+				logger.Debug("ACK 수신 성공", zap.String("id", id), zap.Uint64("seq", ack.Sequence))
 				storeAckResult(goCtx, id, AckResult{
 					Status:   "ACK",
 					Sequence: ack.Sequence,
 				})
 			} else {
+				logger.Warn("ACK 수신 실패", zap.String("id", id))
 				storeAckResult(goCtx, id, AckResult{Status: "FAILED"})
 			}
 		case <-time.After(10 * time.Second):
+			logger.Warn("ACK 수신 타임아웃", zap.String("id", id))
 			storeAckResult(goCtx, id, AckResult{Status: "TIMEOUT"})
 		}
 	}()
@@ -117,7 +123,10 @@ func storeAckResult(ctx context.Context, id string, result AckResult) error {
 
 	err = valkeyrepo.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
 	if err != nil {
-		logs.GetLogger(ctx).Warnw("ACK 상태 저장 실패", "id", id, "error", err)
+		logs.GetLogger(ctx).Warn("ACK 상태 저장 실패",
+			zap.String("id", id),
+			zap.Error(err),
+		)
 	}
 	return err
 }

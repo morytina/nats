@@ -10,6 +10,7 @@ import (
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
+	"nats/internal/context/logs"
 	"nats/internal/context/metrics"
 	"nats/internal/context/traces"
 	"nats/internal/handler"
@@ -26,6 +27,7 @@ func main() {
 	if err != nil {
 		panic("config load failed")
 	}
+	ctxlog, _ := logs.NewLogger("info")
 
 	logger.InitLogger(cfg)
 	metrics.StartMetrcis()
@@ -40,7 +42,7 @@ func main() {
 	}
 
 	e := echo.New()
-	emiddle.AttachMiddlewares(e)
+	emiddle.AttachMiddlewares(e, ctxlog)
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
 	apis := e.Group(apiVer)
 	apis.Any("/", handler.ActionRouter) // 직접 핸들러로 분리 가능
