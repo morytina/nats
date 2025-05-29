@@ -61,7 +61,7 @@ func NewLogger(levelStr string, fields ...zap.Field) (*zap.Logger, error) {
 	return baseLogger.With(fields...), nil
 }
 
-// parseLevel converts a string log level into a zapcore.Level
+// parseLevel converts a string log level into zapcore.Level
 func parseLevel(str string) zapcore.Level {
 	switch strings.ToLower(str) {
 	case "debug":
@@ -81,8 +81,8 @@ func parseLevel(str string) zapcore.Level {
 	}
 }
 
-// injectTracing returns trace_id and span_id fields if available
-func injectTracing(ctx context.Context) []zap.Field {
+// InjectTrace exposes trace_id and span_id fields for manual injection
+func InjectTrace(ctx context.Context) []zap.Field {
 	spanCtx := trace.SpanContextFromContext(ctx)
 	if !spanCtx.IsValid() {
 		return nil
@@ -93,27 +93,7 @@ func injectTracing(ctx context.Context) []zap.Field {
 	}
 }
 
-// Logging helpers with trace injection
-func DebugWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Debug(msg, append(fields, injectTracing(ctx)...)...)
-}
-
-func InfoWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Info(msg, append(fields, injectTracing(ctx)...)...)
-}
-
-func WarnWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Warn(msg, append(fields, injectTracing(ctx)...)...)
-}
-
-func ErrorWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Error(msg, append(fields, injectTracing(ctx)...)...)
-}
-
-func FatalWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Fatal(msg, append(fields, injectTracing(ctx)...)...)
-}
-
-func PanicWithTrace(ctx context.Context, msg string, fields ...zap.Field) {
-	GetLogger(ctx).WithOptions(zap.AddCallerSkip(1)).Panic(msg, append(fields, injectTracing(ctx)...)...)
+// WithTraceFields appends trace_id and span_id to user-provided fields
+func WithTraceFields(ctx context.Context, fields ...zap.Field) []zap.Field {
+	return append(fields, InjectTrace(ctx)...)
 }

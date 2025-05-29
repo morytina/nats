@@ -27,7 +27,7 @@ func main() {
 	if err != nil {
 		panic("config load failed")
 	}
-	ctxlog, _ := logs.NewLogger("info")
+	ctxlog, _ := logs.NewLogger(cfg.Log.Level)
 
 	logger.InitLogger(cfg)
 	metrics.StartMetrcis()

@@ -72,7 +72,7 @@ func ListTopicsHandler() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 
-		logs.InfoWithTrace(ctx, "ListTopicHandler trace and span check")
+		logs.GetLogger(ctx).Info("ListTopicHandler trace and span check", logs.WithTraceFields(ctx)...)
 
 		topics, err := service.ListTopics(ctx)
 		if err != nil {
@@ -80,7 +80,7 @@ func ListTopicsHandler() echo.HandlerFunc {
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		logs.InfoWithTrace(ctx, "리스트 반환", zap.Int("count", len(topics)))
+		logs.GetLogger(ctx).Info("리스트 반환", logs.WithTraceFields(ctx, zap.Int("count", len(topics)))...)
 		return c.JSON(http.StatusOK, ListTopicsResponse{Topics: topics})
 	}
 }

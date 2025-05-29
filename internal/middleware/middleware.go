@@ -9,7 +9,6 @@ import (
 	"go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
 	"nats/internal/context/logs"
@@ -34,7 +33,6 @@ func AttachMiddlewares(e *echo.Echo, baseLogger *zap.Logger) {
 
 			// Extract trace context from incoming request headers
 			ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(req.Header))
-			spanCtx := trace.SpanContextFromContext(ctx)
 
 			// Get or generate request ID
 			requestID := c.Response().Header().Get(echo.HeaderXRequestID)
@@ -45,8 +43,6 @@ func AttachMiddlewares(e *echo.Echo, baseLogger *zap.Logger) {
 			// Build enriched logger
 			logger := baseLogger.With(
 				zap.String("request_id", requestID),
-				zap.String("trace_id", spanCtx.TraceID().String()),
-				zap.String("span_id", spanCtx.SpanID().String()),
 			)
 
 			// Store logger in context

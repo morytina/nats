@@ -10,6 +10,7 @@ import (
 	natsrepo "nats/internal/infra/nats"
 
 	"github.com/nats-io/nats.go"
+	"go.uber.org/zap"
 )
 
 func CreateTopic(ctx context.Context, name, subject string) error {
@@ -46,7 +47,7 @@ func ListTopics(ctx context.Context) ([]string, error) {
 	ctx, span := traces.StartSpan(ctx, "listopics")
 	defer span.End()
 
-	logs.InfoWithTrace(ctx, "ListTopics New Span test")
+	logs.GetLogger(ctx).Info("ListTopics New Span test", logs.WithTraceFields(ctx, zap.String("add", "value"))...)
 	js := natsrepo.GetJetStream(ctx)
 
 	var topics []string
