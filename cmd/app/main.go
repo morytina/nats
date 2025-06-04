@@ -16,22 +16,24 @@ import (
 	"nats/internal/handler"
 	natsrepo "nats/internal/infra/nats"
 	"nats/internal/infra/valkey"
-	emiddle "nats/internal/middleware"
+	imiddle "nats/internal/middleware"
+	"nats/internal/service"
 	"nats/pkg/config"
-	"nats/pkg/logger"
+	"nats/pkg/glogger"
 )
 
 func main() {
 	ctx := context.Background()
-	cfg, err := config.LoadConfig("configs/config.yaml")
+	cfg, err := config.LoadConfig("config/config.yaml")
+
 	if err != nil {
 		panic("config load failed")
 	}
-	ctxlog, _ := logs.NewLogger(cfg.Log.Level)
 
-	logger.InitLogger(cfg)
-	metrics.StartMetrcis()
+	glogger.GlobalLogger(cfg)
+	metrics.StartMetrics()
 	traces.StartTrace()
+	logger, _ := logs.NewLogger(cfg.Log.Level)
 
 	const apiVer = "v1"
 
@@ -42,32 +44,33 @@ func main() {
 	}
 
 	e := echo.New()
-	emiddle.AttachMiddlewares(e, ctxlog)
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
-	apis := e.Group(apiVer)
-	apis.Any("/", handler.ActionRouter) // 직접 핸들러로 분리 가능
+	imiddle.AttachMiddlewares(e, logger)
 
+	topicSvc := service.NewTopicService()
+	publishSvc := service.NewPublishService()
+
+	handlers := handler.BuildHandlers(topicSvc, publishSvc)
+	apiRouter := handler.NewApiRouter(handlers)
+	apiRouter.Register(e.Group(apiVer))
+
+	// 서버 시작
 	go func() {
-		logger.Info(ctx, "API 서버 실행 중", "url", "http://localhost:8080")
+		glogger.Info(ctx, "API server is running", "url", "http://localhost:8080")
 		if err := e.Start(":8080"); err != nil {
-			logger.Warn(ctx, "서버 종료", "error", err)
+			glogger.Warn(ctx, "Server shutdown", "error", err)
 		}
 	}()
 
+	// 종료 시그널 처리
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
-
-	logger.Info(ctx, "서버 종료 시그널 수신, 정리 중...")
+	glogger.Info(ctx, "Received server shutdown signal, cleaning up...")
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-
 	if err := e.Shutdown(ctx); err != nil {
-		logger.Error(ctx, "Echo 서버 종료 실패", "error", err)
+		glogger.Error(ctx, "Echo server shutdown failed", "error", err)
 	}
-
-	natsrepo.ShutdownNatsPool(ctx)
-	valkey.ShutdownValkeyClient(ctx)
-
-	logger.Info(ctx, "서버 정상 종료 완료")
+	glogger.Info(ctx, "The server has been shut down normally")
 }

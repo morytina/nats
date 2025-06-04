@@ -6,24 +6,51 @@ import (
 
 	"github.com/labstack/echo/v4"
 
+	"nats/internal/context/logs"
 	"nats/internal/context/metrics"
 )
 
-// 핸들러 매핑 테이블
-var actionHandlers = map[string]func() echo.HandlerFunc{
-	"createTopic":  CreateTopicHandler,
-	"deleteTopic":  DeleteTopicHandler,
-	"listTopics":   ListTopicsHandler,
-	"publish":      PublishHandler,
-	"publishCheck": CheckAckStatusHandler,
+type ApiRouter interface {
+	Register(g *echo.Group)
 }
 
-func ActionRouter(c echo.Context) error {
+type apiRouter struct {
+	handlers map[string]func() echo.HandlerFunc
+}
+
+func NewApiRouter(handlers map[string]func() echo.HandlerFunc) ApiRouter {
+	return &apiRouter{handlers: handlers}
+}
+
+func (r *apiRouter) Register(g *echo.Group) {
+	g.Any("/:accountid", r.handleAccountBase)
+	g.Any("/:accountid/:topicid", r.handleAccountTopicBase)
+}
+
+func (r *apiRouter) handleAccountBase(c echo.Context) error {
+	logs.GetLogger(c.Request().Context()).Info("handleAccountBase")
 	action := c.QueryParam("Action")
-	if handlerFunc, ok := actionHandlers[action]; ok {
+
+	if handlerFunc, ok := r.handlers[action]; ok {
 		err := handlerFunc()(c)
 		metrics.ApiCallCounter.WithLabelValues(action, strconv.Itoa(c.Response().Status)).Inc()
 		return err
 	}
+
+	metrics.ApiCallCounter.WithLabelValues(action, "400").Inc()
+	return c.String(http.StatusBadRequest, "invalid Action")
+}
+
+func (r *apiRouter) handleAccountTopicBase(c echo.Context) error {
+	logs.GetLogger(c.Request().Context()).Info("handleAccountTopicBase")
+	action := c.QueryParam("Action")
+
+	if handlerFunc, ok := r.handlers[action]; ok {
+		err := handlerFunc()(c)
+		metrics.ApiCallCounter.WithLabelValues(action, strconv.Itoa(c.Response().Status)).Inc()
+		return err
+	}
+
+	metrics.ApiCallCounter.WithLabelValues(action, "400").Inc()
 	return c.String(http.StatusBadRequest, "invalid Action")
 }

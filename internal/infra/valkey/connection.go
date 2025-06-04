@@ -6,7 +6,7 @@ import (
 
 	"nats/internal/context/metrics"
 	"nats/pkg/config"
-	"nats/pkg/logger"
+	"nats/pkg/glogger"
 
 	"github.com/go-redis/redis/v8"
 )
@@ -31,12 +31,12 @@ func InitValkeyClient(ctx context.Context, cfg *config.Config) error {
 
 	if err := rawClient.Ping(ctx).Err(); err != nil {
 		metrics.ValkeyFailures.Inc()
-		logger.Error(ctx, "Valkey 연결 실패", "addr", addr, "error", err)
+		glogger.Error(ctx, "Valkey 연결 실패", "addr", addr, "error", err)
 		return err
 	}
 
 	metrics.ValkeyReconnects.Inc()
-	logger.Info(ctx, "Valkey 연결 성공", "addr", addr)
+	glogger.Info(ctx, "Valkey 연결 성공", "addr", addr)
 
 	// 인터페이스 구현체로 등록
 	clientInstance = NewRedisClient(rawClient)
@@ -50,9 +50,9 @@ func GetClient() Client {
 func ShutdownValkeyClient(ctx context.Context) {
 	if rc, ok := clientInstance.(*redisClient); ok {
 		if err := rc.raw.Close(); err != nil {
-			logger.Warn(ctx, "Valkey 종료 오류", "error", err)
+			glogger.Warn(ctx, "Valkey 종료 오류", "error", err)
 		} else {
-			logger.Info(ctx, "Valkey 클라이언트 정상 종료")
+			glogger.Info(ctx, "Valkey 클라이언트 정상 종료")
 		}
 	}
 }

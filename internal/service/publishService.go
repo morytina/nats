@@ -20,40 +20,21 @@ type AckResult struct {
 	Sequence uint64 `json:"sequence"` // JetStream Sequence if ACK
 }
 
-func PublishMessage(ctx context.Context, topicName, message, subject string) (string, error) {
-	if topicName == "" || message == "" {
-		return "", errors.New("missing required fields")
-	}
-
-	if subject == "" {
-		subject = topicName
-	}
-
-	js := natsrepo.GetJetStream(ctx)
-	ack, err := js.Publish(subject, []byte(message))
-	if err != nil {
-		return "", err
-	}
-
-	id := uuid.NewString()
-
-	if ack != nil {
-		storeAckResult(ctx, id, AckResult{
-			Status:   "ACK",
-			Sequence: ack.Sequence,
-		})
-	} else {
-		storeAckResult(ctx, id, AckResult{Status: "FAILED"})
-	}
-
-	return id, nil
+type PublishService interface {
+	PublishAsyncMessage(ctx context.Context, topicName, message, subject string) (string, error)
+	CheckAckStatus(ctx context.Context, id string) (string, error)
 }
 
-func PublishAsyncMessage(ctx context.Context, topicName, message, subject string) (string, error) {
+type publishService struct{}
+
+func NewPublishService() PublishService {
+	return &publishService{}
+}
+
+func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, message, subject string) (string, error) {
 	if topicName == "" || message == "" {
 		return "", errors.New("missing required fields")
 	}
-
 	if subject == "" {
 		subject = topicName
 	}
@@ -65,7 +46,7 @@ func PublishAsyncMessage(ctx context.Context, topicName, message, subject string
 	}
 
 	id := uuid.NewString()
-	storeAckResult(ctx, id, AckResult{Status: "PENDING"})
+	_ = s.storeAckResult(ctx, id, AckResult{Status: "PENDING"})
 
 	go func() {
 		goCtx := context.Background()
@@ -75,24 +56,21 @@ func PublishAsyncMessage(ctx context.Context, topicName, message, subject string
 		case ack := <-ackFuture.Ok():
 			if ack != nil {
 				logger.Debug("ACK 수신 성공", zap.String("id", id), zap.Uint64("seq", ack.Sequence))
-				storeAckResult(goCtx, id, AckResult{
-					Status:   "ACK",
-					Sequence: ack.Sequence,
-				})
+				_ = s.storeAckResult(goCtx, id, AckResult{Status: "ACK", Sequence: ack.Sequence})
 			} else {
 				logger.Warn("ACK 수신 실패", zap.String("id", id))
-				storeAckResult(goCtx, id, AckResult{Status: "FAILED"})
+				_ = s.storeAckResult(goCtx, id, AckResult{Status: "FAILED"})
 			}
 		case <-time.After(10 * time.Second):
 			logger.Warn("ACK 수신 타임아웃", zap.String("id", id))
-			storeAckResult(goCtx, id, AckResult{Status: "TIMEOUT"})
+			_ = s.storeAckResult(goCtx, id, AckResult{Status: "TIMEOUT"})
 		}
 	}()
 
 	return id, nil
 }
 
-func CheckAckStatus(ctx context.Context, id string) (string, error) {
+func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string, error) {
 	jsonStr, err := valkeyrepo.GetClient().GetKey(ctx, id)
 	if err != nil || jsonStr == "" {
 		return "", errors.New("not found")
@@ -115,7 +93,7 @@ func CheckAckStatus(ctx context.Context, id string) (string, error) {
 	}
 }
 
-func storeAckResult(ctx context.Context, id string, result AckResult) error {
+func (s *publishService) storeAckResult(ctx context.Context, id string, result AckResult) error {
 	bytes, err := json.Marshal(result)
 	if err != nil {
 		return err
@@ -123,10 +101,7 @@ func storeAckResult(ctx context.Context, id string, result AckResult) error {
 
 	err = valkeyrepo.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
 	if err != nil {
-		logs.GetLogger(ctx).Warn("ACK 상태 저장 실패",
-			zap.String("id", id),
-			zap.Error(err),
-		)
+		logs.GetLogger(ctx).Warn("ACK 상태 저장 실패", zap.String("id", id), zap.Error(err))
 	}
 	return err
 }

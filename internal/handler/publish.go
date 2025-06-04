@@ -1,14 +1,21 @@
 package handler
 
 import (
-	"net/http"
-
 	"nats/internal/context/logs"
 	"nats/internal/service"
+	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
+
+type PublishHandler struct {
+	svc service.PublishService
+}
+
+func NewPublishHandler(svc service.PublishService) *PublishHandler {
+	return &PublishHandler{svc: svc}
+}
 
 type PublishRequest struct {
 	TopicName string `json:"topicName"`
@@ -20,7 +27,7 @@ type PublishResponse struct {
 	MessageID string `json:"messageId"`
 }
 
-func PublishHandler() echo.HandlerFunc {
+func (h *PublishHandler) Publish() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 		logger := logs.GetLogger(ctx)
@@ -31,7 +38,7 @@ func PublishHandler() echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
-		msgID, err := service.PublishAsyncMessage(ctx, req.TopicName, req.Message, req.Subject)
+		msgID, err := h.svc.PublishAsyncMessage(ctx, req.TopicName, req.Message, req.Subject)
 		if err != nil {
 			logger.Error("메시지 발행 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
@@ -42,7 +49,7 @@ func PublishHandler() echo.HandlerFunc {
 	}
 }
 
-func CheckAckStatusHandler() echo.HandlerFunc {
+func (h *PublishHandler) CheckAckStatus() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 		logger := logs.GetLogger(ctx)
@@ -53,7 +60,7 @@ func CheckAckStatusHandler() echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing message id"})
 		}
 
-		status, err := service.CheckAckStatus(ctx, id)
+		status, err := h.svc.CheckAckStatus(ctx, id)
 		if err != nil {
 			logger.Warn("ack 상태 조회 실패", zap.String("id", id), zap.Error(err))
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "message id not found"})

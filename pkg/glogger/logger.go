@@ -1,4 +1,4 @@
-package logger
+package glogger
 
 import (
 	"context"
@@ -28,7 +28,7 @@ type CtxKey string
 
 const RequestIDKey CtxKey = "request_id"
 
-func InitLogger(cfg *config.Config) {
+func GlobalLogger(cfg *config.Config) {
 	initWithLevel(parseLevel(cfg.Log.Level))
 }
 

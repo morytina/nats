@@ -1,14 +1,21 @@
 package handler
 
 import (
-	"net/http"
-
 	"nats/internal/context/logs"
 	"nats/internal/service"
+	"net/http"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
 )
+
+type TopicHandler struct {
+	svc service.TopicService
+}
+
+func NewTopicHandler(svc service.TopicService) *TopicHandler {
+	return &TopicHandler{svc: svc}
+}
 
 type CreateTopicRequest struct {
 	Name    string `json:"name"`
@@ -23,7 +30,7 @@ type ListTopicsResponse struct {
 	Topics []string `json:"topics"`
 }
 
-func CreateTopicHandler() echo.HandlerFunc {
+func (h *TopicHandler) Create() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 		logger := logs.GetLogger(ctx)
@@ -34,8 +41,7 @@ func CreateTopicHandler() echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
-		err := service.CreateTopic(ctx, req.Name, req.Subject)
-		if err != nil {
+		if err := h.svc.CreateTopic(ctx, req.Name, req.Subject); err != nil {
 			logger.Error("스트림 생성 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
@@ -47,7 +53,7 @@ func CreateTopicHandler() echo.HandlerFunc {
 	}
 }
 
-func DeleteTopicHandler() echo.HandlerFunc {
+func (h *TopicHandler) Delete() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
 		logger := logs.GetLogger(ctx)
@@ -57,8 +63,7 @@ func DeleteTopicHandler() echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing 'name' parameter"})
 		}
 
-		err := service.DeleteTopic(ctx, name)
-		if err != nil {
+		if err := h.svc.DeleteTopic(ctx, name); err != nil {
 			logger.Error("스트림 삭제 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
@@ -68,19 +73,18 @@ func DeleteTopicHandler() echo.HandlerFunc {
 	}
 }
 
-func ListTopicsHandler() echo.HandlerFunc {
+func (h *TopicHandler) List() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
+		logger := logs.GetLogger(ctx)
 
-		logs.GetLogger(ctx).Info("ListTopicHandler trace and span check", logs.WithTraceFields(ctx)...)
-
-		topics, err := service.ListTopics(ctx)
+		topics, err := h.svc.ListTopics(ctx)
 		if err != nil {
-			logs.GetLogger(ctx).Error("리스트 조회 실패", zap.Error(err))
+			logger.Error("리스트 조회 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
 
-		logs.GetLogger(ctx).Info("리스트 반환", logs.WithTraceFields(ctx, zap.Int("count", len(topics)))...)
+		logger.Info("리스트 반환", zap.Int("count", len(topics)))
 		return c.JSON(http.StatusOK, ListTopicsResponse{Topics: topics})
 	}
 }

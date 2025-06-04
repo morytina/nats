@@ -2,7 +2,7 @@ package middleware
 
 import (
 	"context"
-	"nats/pkg/logger"
+	"nats/pkg/glogger"
 	"net/http"
 
 	"github.com/labstack/echo/v4"
@@ -48,5 +48,5 @@ func AttachMiddlewares(e *echo.Echo) {
 
 // context에 request_id 저장
 func contextWithRequestID(ctx context.Context, reqID string) context.Context {
-	return context.WithValue(ctx, logger.RequestIDKey, reqID)
+	return context.WithValue(ctx, glogger.RequestIDKey, reqID)
 }

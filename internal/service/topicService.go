@@ -1,4 +1,3 @@
-// internal/service/topicService.go
 package service
 
 import (
@@ -13,7 +12,19 @@ import (
 	"go.uber.org/zap"
 )
 
-func CreateTopic(ctx context.Context, name, subject string) error {
+type TopicService interface {
+	CreateTopic(ctx context.Context, name, subject string) error
+	DeleteTopic(ctx context.Context, name string) error
+	ListTopics(ctx context.Context) ([]string, error)
+}
+
+type topicService struct{}
+
+func NewTopicService() TopicService {
+	return &topicService{}
+}
+
+func (s *topicService) CreateTopic(ctx context.Context, name, subject string) error {
 	js := natsrepo.GetJetStream(ctx)
 
 	streamCfg := &nats.StreamConfig{
@@ -38,16 +49,17 @@ func CreateTopic(ctx context.Context, name, subject string) error {
 	return err
 }
 
-func DeleteTopic(ctx context.Context, name string) error {
+func (s *topicService) DeleteTopic(ctx context.Context, name string) error {
 	js := natsrepo.GetJetStream(ctx)
 	return js.DeleteStream(name)
 }
 
-func ListTopics(ctx context.Context) ([]string, error) {
-	ctx, span := traces.StartSpan(ctx, "listopics")
+func (s *topicService) ListTopics(ctx context.Context) ([]string, error) {
+	ctx, span := traces.StartSpan(ctx, "listTopics")
 	defer span.End()
 
-	logs.GetLogger(ctx).Info("ListTopics New Span test", logs.WithTraceFields(ctx, zap.String("add", "value"))...)
+	logs.GetLogger(ctx).Info("ListTopics trace test", logs.WithTraceFields(ctx, zap.String("phase", "list"))...)
+
 	js := natsrepo.GetJetStream(ctx)
 
 	var topics []string
