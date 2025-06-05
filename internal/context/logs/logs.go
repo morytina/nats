@@ -82,7 +82,7 @@ func parseLevel(str string) zapcore.Level {
 }
 
 // InjectTrace exposes trace_id and span_id fields for manual injection
-func InjectTrace(ctx context.Context) []zap.Field {
+func injectTrace(ctx context.Context) []zap.Field {
 	spanCtx := trace.SpanContextFromContext(ctx)
 	if !spanCtx.IsValid() {
 		return nil
@@ -95,5 +95,5 @@ func InjectTrace(ctx context.Context) []zap.Field {
 
 // WithTraceFields appends trace_id and span_id to user-provided fields
 func WithTraceFields(ctx context.Context, fields ...zap.Field) []zap.Field {
-	return append(fields, InjectTrace(ctx)...)
+	return append(fields, injectTrace(ctx)...)
 }
