@@ -39,7 +39,7 @@ func main() {
 
 	natsrepo.InitNatsPool(ctx, cfg)
 	if err := valkey.InitValkeyClient(ctx, cfg); err != nil {
-		natsrepo.ShutdownNatsPool(ctx) // 생성된 커넥션 정리
+		natsrepo.ShutdownNatsPool(ctx)
 		os.Exit(1)
 	}
 
@@ -48,13 +48,19 @@ func main() {
 	imiddle.AttachMiddlewares(e, logger)
 
 	topicSvc := service.NewTopicService()
-	publishSvc := service.NewPublishService()
 
-	handlers := handler.BuildHandlers(topicSvc, publishSvc)
-	apiRouter := handler.NewApiRouter(handlers)
+	// ackDispatcher is futureAck after process gorutine
+	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker) // Queue Size : TPS 100000
+	ackDispatcher.Start()
+
+	ackTimeout := 5 * time.Second
+	publishSvc := service.NewPublishService(ackDispatcher, ackTimeout)
+
+	accountBase := handler.AccountBaseHandlers(topicSvc)
+	accountTopicBase := handler.AccountTopicBaseHandlers(topicSvc, publishSvc)
+	apiRouter := handler.NewApiRouter(accountBase, accountTopicBase)
 	apiRouter.Register(e.Group(apiVer))
 
-	// 서버 시작
 	go func() {
 		glogger.Info(ctx, "API server is running", "url", "http://localhost:8080")
 		if err := e.Start(":8080"); err != nil {
@@ -62,11 +68,15 @@ func main() {
 		}
 	}()
 
-	// 종료 시그널 처리
 	stop := make(chan os.Signal, 1)
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	glogger.Info(ctx, "Received server shutdown signal, cleaning up...")
+
+	natsrepo.ShutdownNatsPool(ctx)
+	valkey.ShutdownValkeyClient(ctx)
+	ackDispatcher.Stop()
+
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 	if err := e.Shutdown(ctx); err != nil {

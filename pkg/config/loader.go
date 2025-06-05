@@ -10,11 +10,12 @@ const configPath = "configs/config.yaml"
 
 // 전체 설정 구조체 정의
 type Config struct {
-	Region string       `yaml:"region"`
-	Env    string       `yaml:"env"`
-	Log    LoggerConfig `yaml:"log"`
-	Nats   NatsConfig   `yaml:"nats"`
-	Valkey ValkeyConfig `yaml:"valkey"`
+	Region  string        `yaml:"region"`
+	Env     string        `yaml:"env"`
+	Log     LoggerConfig  `yaml:"log"`
+	Nats    NatsConfig    `yaml:"nats"`
+	Valkey  ValkeyConfig  `yaml:"valkey"`
+	Publish PublishConfig `yaml:"publish"`
 }
 
 type LoggerConfig struct {
@@ -29,6 +30,10 @@ type ValkeyConfig struct {
 	Addr     string `yaml:"addr"`
 	Password string `yaml:"password"`
 	DB       int    `yaml:"db"`
+}
+
+type PublishConfig struct {
+	Worker int `yaml:"worker"`
 }
 
 func LoadConfig(path string) (*Config, error) {

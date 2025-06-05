@@ -29,18 +29,18 @@ subscribe 액션과 관련된 api
 ### 테스트 curl
 ```bash
 # Create API
-curl -X POST "http://localhost:8080/v1/?Action=createTopic" \
+curl -X POST "http://localhost:8080/v1/accountid?Action=createTopic" \
   -H "Content-Type: application/json" \
   -d '{"name": "sns-wrk-test", "subject": "sns.wrk.test"}'
  
 # Delete API
-curl -X POST "http://localhost:8080/v1/?Action=deleteTopic&name=sns-wrk-test"
+curl -X POST "http://localhost:8080/v1/accountid/topicid?Action=deleteTopic&name=sns-wrk-test"
 
 # List API
-curl "http://localhost:8080/v1/?Action=listTopics"
+curl "http://localhost:8080/v1/accountid/topicid?Action=listTopics"
 
 # publish
-curl -X POST "http://localhost:8080/v1/?Action=publish" \
+curl -X POST "http://localhost:8080/v1/accountid/topicid?Action=publish" \
   -H "Content-Type: application/json" \
   -d '{
         "topicName": "sns-wrk-test",
@@ -49,7 +49,7 @@ curl -X POST "http://localhost:8080/v1/?Action=publish" \
       }'
 
 # publish status check
-curl "http://localhost:8080/v1/?Action=publishCheck&messageId=<message-id>"
+curl "http://localhost:8080/v1/accountid/topicid?Action=publishCheck&messageId=<message-id>"
 
 ```
 
