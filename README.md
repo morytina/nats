@@ -1,3 +1,6 @@
+# 목적
+NATS를 활용하여 AWS SNS 와 같은 pub/sub 기반 모델을 구현
+
 # API code
 ```bash
 go mod init nats
