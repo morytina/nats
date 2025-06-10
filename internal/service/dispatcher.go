@@ -92,17 +92,17 @@ func (d *ackDispatcher) process(task *AckTask) {
 	select {
 	case ack := <-task.AckFuture.Ok():
 		if ack != nil {
-			logger.Info("ACK 수신 성공", logs.WithTraceFields(ctx, zap.String("id", task.ID), zap.Uint64("seq", ack.Sequence))...)
-			span.SetStatus(codes.Ok, "ACK receive success")
+			logger.Info("ACK received successfully", logs.WithTraceFields(ctx, zap.String("id", task.ID), zap.Uint64("seq", ack.Sequence))...)
+			span.SetStatus(codes.Ok, "ACK received successfully")
 			_ = storeAckResult(ctx, task.ID, AckResult{Status: "ACK", Sequence: ack.Sequence})
 		} else {
-			logger.Error("ACK 수신 실패", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
-			span.SetStatus(codes.Error, "ACK receive failed")
+			logger.Error("ACK reception failure", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
+			span.SetStatus(codes.Error, "ACK reception failure")
 			_ = storeAckResult(ctx, task.ID, AckResult{Status: "FAILED"})
 		}
 	case <-time.After(task.TimeOut):
-		logger.Warn("ACK 수신 타임아웃", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
-		span.SetStatus(codes.Error, "ACK receive Timeout")
+		logger.Warn("ACK receive timeout", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
+		span.SetStatus(codes.Error, "ACK receive timeout")
 		_ = storeAckResult(ctx, task.ID, AckResult{Status: "TIMEOUT"})
 	}
 }
@@ -115,7 +115,7 @@ func storeAckResult(ctx context.Context, id string, result AckResult) error {
 	}
 	err = valkeyrepo.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
 	if err != nil {
-		logs.GetLogger(ctx).Warn("ACK 상태 저장 실패", zap.String("id", id), zap.Error(err))
+		logs.GetLogger(ctx).Warn("Failed to save ACK status", zap.String("id", id), zap.Error(err))
 	}
 	return err
 }
