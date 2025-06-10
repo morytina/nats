@@ -54,7 +54,10 @@ func main() {
 	ackDispatcher.Start()
 
 	ackTimeout := 5 * time.Second
-	publishSvc := service.NewPublishService(ackDispatcher, ackTimeout)
+
+	// ✅ 변경된 부분: JetStreamClient 의존성 주입
+	jsClient := natsrepo.GetJetStreamClient()
+	publishSvc := service.NewPublishService(jsClient, ackDispatcher, ackTimeout)
 
 	accountBase := handler.AccountBaseHandlers(topicSvc)
 	accountTopicBase := handler.AccountTopicBaseHandlers(topicSvc, publishSvc)

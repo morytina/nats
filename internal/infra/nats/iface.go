@@ -17,6 +17,10 @@ func SetJetStreamClient(client JetStreamPool) {
 	jetStreamClient = client
 }
 
+func GetJetStreamClient() JetStreamPool {
+	return jetStreamClient
+}
+
 func GetJetStream(ctx context.Context) nats.JetStreamContext {
 	return jetStreamClient.GetJetStream(ctx)
 }

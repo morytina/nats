@@ -37,7 +37,7 @@ curl -X POST "http://localhost:8080/v1/accountid?Action=createTopic" \
 curl -X POST "http://localhost:8080/v1/accountid/topicid?Action=deleteTopic&name=sns-wrk-test"
 
 # List API
-curl "http://localhost:8080/v1/accountid/topicid?Action=listTopics"
+curl "http://localhost:8080/v1/accountid?Action=listTopics"
 
 # publish
 curl -X POST "http://localhost:8080/v1/accountid/topicid?Action=publish" \

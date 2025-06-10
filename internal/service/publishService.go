@@ -8,10 +8,10 @@ import (
 	"time"
 
 	"nats/internal/context/logs"
-	natsrepo "nats/internal/infra/nats"
-	valkeyrepo "nats/internal/infra/valkey"
+	"nats/internal/infra/valkey"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go"
 )
 
 type AckResult struct {
@@ -24,13 +24,19 @@ type PublishService interface {
 	CheckAckStatus(ctx context.Context, id string) (string, error)
 }
 
+type JetStreamClient interface {
+	GetJetStream(ctx context.Context) nats.JetStreamContext
+}
+
 type publishService struct {
+	jsClient   JetStreamClient
 	dispatcher AckDispatcher
 	timeout    time.Duration
 }
 
-func NewPublishService(dispatcher AckDispatcher, timeout time.Duration) PublishService {
+func NewPublishService(jsClient JetStreamClient, dispatcher AckDispatcher, timeout time.Duration) PublishService {
 	return &publishService{
+		jsClient:   jsClient,
 		dispatcher: dispatcher,
 		timeout:    timeout,
 	}
@@ -47,18 +53,15 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 		subject = topicName
 	}
 
-	js := natsrepo.GetJetStream(ctx)
+	js := s.jsClient.GetJetStream(ctx)
 	ackFuture, err := js.PublishAsync(subject, []byte(message))
 	if err != nil {
 		return "", err
 	}
 
 	id := uuid.NewString()
-
-	// 초기 상태 저장
 	_ = storeAckResult(ctx, id, AckResult{Status: "PENDING"})
 
-	// AckTask 생성 및 큐로 전달
 	task := NewAckTask(ctx, id, ackFuture, s.timeout)
 	s.dispatcher.Enqueue(task)
 
@@ -66,7 +69,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 }
 
 func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string, error) {
-	jsonStr, err := valkeyrepo.GetClient().GetKey(ctx, id)
+	jsonStr, err := valkey.GetClient().GetKey(ctx, id)
 	if err != nil || jsonStr == "" {
 		return "", errors.New("not found")
 	}
