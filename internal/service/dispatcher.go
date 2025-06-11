@@ -3,12 +3,11 @@ package service
 import (
 	"context"
 	"encoding/json"
-	"sync"
-	"time"
-
 	"nats/internal/context/logs"
 	"nats/internal/context/traces"
-	valkeyrepo "nats/internal/infra/valkey"
+	"nats/internal/infra/valkey"
+	"sync"
+	"time"
 
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
@@ -113,7 +112,7 @@ func storeAckResult(ctx context.Context, id string, result AckResult) error {
 	if err != nil {
 		return err
 	}
-	err = valkeyrepo.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
+	err = valkey.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
 	if err != nil {
 		logs.GetLogger(ctx).Warn("Failed to save ACK status", zap.String("id", id), zap.Error(err))
 	}

@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 func InitNatsPool(ctx context.Context, cfg *config.Config) {
@@ -17,8 +18,7 @@ func InitNatsPool(ctx context.Context, cfg *config.Config) {
 		pool = 3
 	}
 	ncPool = make([]*nats.Conn, pool)
-	jsPool = make([]nats.JetStreamContext, pool)
-
+	jsPool = make([]jetstream.JetStream, pool)
 	for i := 0; i < pool; i++ {
 		connName := fmt.Sprintf("SNS-API-Conn-%d", i)
 		opts := makeNATSOptions(ctx, connName)
@@ -29,7 +29,7 @@ func InitNatsPool(ctx context.Context, cfg *config.Config) {
 		}
 		ncPool[i] = nc
 
-		js, err := nc.JetStream(nats.PublishAsyncMaxPending(100000))
+		js, err := jetstream.New(nc, jetstream.WithPublishAsyncMaxPending(100000)) // nc.JetStream(nats.PublishAsyncMaxPending(100000))
 		if err != nil {
 			glogger.Fatal(ctx, "JetStream 사용 실패", "index", i, "error", err)
 		}

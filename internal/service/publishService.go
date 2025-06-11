@@ -4,14 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"nats/internal/context/logs"
+	"nats/internal/infra/valkey"
 	"strconv"
 	"time"
 
-	"nats/internal/context/logs"
-	"nats/internal/infra/valkey"
-
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 type AckResult struct {
@@ -25,7 +24,7 @@ type PublishService interface {
 }
 
 type JetStreamClient interface {
-	GetJetStream(ctx context.Context) nats.JetStreamContext
+	GetJetStream(ctx context.Context) jetstream.JetStream
 }
 
 type publishService struct {

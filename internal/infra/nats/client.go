@@ -7,11 +7,12 @@ import (
 	"sync/atomic"
 
 	"github.com/nats-io/nats.go"
+	"github.com/nats-io/nats.go/jetstream"
 )
 
 var (
 	ncPool    []*nats.Conn
-	jsPool    []nats.JetStreamContext
+	jsPool    []jetstream.JetStream
 	nextJSIdx uint32
 	pool      int
 )
@@ -19,7 +20,7 @@ var (
 // defaultJetStreamClient는 실제 JetStream 연결 풀을 관리합니다.
 type defaultJetStreamClient struct{}
 
-func (c *defaultJetStreamClient) GetJetStream(ctx context.Context) nats.JetStreamContext {
+func (c *defaultJetStreamClient) GetJetStream(ctx context.Context) jetstream.JetStream {
 	for i := 0; i < pool; i++ {
 		idx := int(atomic.AddUint32(&nextJSIdx, 1)) % pool
 		nc := ncPool[idx]
@@ -37,7 +38,7 @@ func (c *defaultJetStreamClient) GetJetStream(ctx context.Context) nats.JetStrea
 			}
 			ncPool[idx] = newNc
 
-			newJs, err := newNc.JetStream()
+			newJs, err := jetstream.New(newNc)
 			if err != nil {
 				glogger.Error(ctx, "JetStreamContext 재생성 실패", "index", idx, "error", err)
 				continue
