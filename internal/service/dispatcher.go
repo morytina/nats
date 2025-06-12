@@ -10,7 +10,6 @@ import (
 	"time"
 
 	"go.opentelemetry.io/otel/codes"
-	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 )
 
@@ -74,16 +73,8 @@ func (d *ackDispatcher) Enqueue(task *AckTask) {
 
 // process handles a single AckTask and stores result in valkey
 func (d *ackDispatcher) process(task *AckTask) {
-	parentCtx := task.Ctx
-	logger := logs.GetLogger(parentCtx)
-	spanCtx := trace.SpanContextFromContext(parentCtx)
-
-	var ctx context.Context
-	if spanCtx.IsValid() {
-		ctx = trace.ContextWithSpanContext(context.Background(), spanCtx)
-	} else {
-		ctx = parentCtx
-	}
+	ctx := task.Ctx
+	logger := logs.GetLogger(ctx)
 
 	ctx, span := traces.StartSpan(ctx, "ack.wait")
 	defer span.End()

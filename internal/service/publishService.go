@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.opentelemetry.io/otel/trace"
 )
 
 type AckResult struct {
@@ -58,10 +59,17 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 		return "", err
 	}
 
+	// taskCtx is for goroutine context. So, make new context (without cancel, include span and logger)
+	taskCtx := context.WithoutCancel(ctx)
+	spanCtx := trace.SpanContextFromContext(ctx)
+	if spanCtx.IsValid() {
+		taskCtx = trace.ContextWithSpanContext(taskCtx, spanCtx)
+	}
+	taskCtx = logs.WithLogger(taskCtx, logger)
 	id := uuid.NewString()
-	_ = storeAckResult(ctx, id, AckResult{Status: "PENDING"})
+	_ = storeAckResult(taskCtx, id, AckResult{Status: "PENDING"})
 
-	task := NewAckTask(ctx, id, ackFuture, s.timeout)
+	task := NewAckTask(taskCtx, id, ackFuture, s.timeout)
 	s.dispatcher.Enqueue(task)
 
 	return id, nil

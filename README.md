@@ -77,7 +77,7 @@ sysctl -w net.ipv4.tcp_tw_reuse=1 # 기본이 2
 # --latency : 각 요청의 지연 통계
 # -s: <script.lua> 로 custom lua 스크립트 사용. (POST, 헤더설정)
 wrk -t10 -c2000 -d10s http://localhost:8080/v1/?Action=listTopics
-wrk -t50 -c7000 -d10s -s ~/vscode/nats/lua/publish.lua http://localhost:8080/v1/?Action=publish
+wrk -t50 -c7000 -d10s -s ~/vscode/nats/lua/publish.lua http://localhost:8080/v1/accountid/topicid?Action=publish
 ```
 
 # NATS-SERVER

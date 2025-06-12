@@ -1,7 +1,7 @@
 region: kr-west1
 env: dev2
 log:
-  level: debug
+  level: warn
 nats:
   connPoolCount: 5
 valkey:
@@ -9,4 +9,4 @@ valkey:
   password: ""
   db: 0
 publish:
-  worker: 300
+  worker: 100000

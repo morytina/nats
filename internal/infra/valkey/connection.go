@@ -26,7 +26,7 @@ func InitValkeyClient(ctx context.Context, cfg *config.Config) error {
 		ReadTimeout:  1 * time.Second,
 		WriteTimeout: 1 * time.Second,
 		MinIdleConns: 3,
-		PoolSize:     10,
+		PoolSize:     100,
 	})
 
 	if err := rawClient.Ping(ctx).Err(); err != nil {
