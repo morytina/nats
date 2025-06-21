@@ -53,9 +53,9 @@ func main() {
 	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker) // Queue Size : TPS 100000
 	ackDispatcher.Start()
 
-	ackTimeout := 10 * time.Second
+	ackTimeout := 30 * time.Second
 
-	// ✅ 변경된 부분: JetStreamClient 의존성 주입
+	// JetStreamClient DI
 	jsClient := natsrepo.GetJetStreamClient()
 	publishSvc := service.NewPublishService(jsClient, ackDispatcher, ackTimeout)
 
