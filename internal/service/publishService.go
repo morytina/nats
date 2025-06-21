@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"nats/internal/context/logs"
+	"nats/internal/infra/nats"
 	"nats/internal/infra/valkey"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/nats-io/nats.go/jetstream"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -24,17 +24,13 @@ type PublishService interface {
 	CheckAckStatus(ctx context.Context, id string) (string, error)
 }
 
-type JetStreamClient interface {
-	GetJetStream(ctx context.Context) jetstream.JetStream
-}
-
 type publishService struct {
-	jsClient   JetStreamClient
+	jsClient   nats.JetStreamPool
 	dispatcher AckDispatcher
 	timeout    time.Duration
 }
 
-func NewPublishService(jsClient JetStreamClient, dispatcher AckDispatcher, timeout time.Duration) PublishService {
+func NewPublishService(jsClient nats.JetStreamPool, dispatcher AckDispatcher, timeout time.Duration) PublishService {
 	return &publishService{
 		jsClient:   jsClient,
 		dispatcher: dispatcher,

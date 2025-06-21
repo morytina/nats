@@ -4,7 +4,7 @@ import (
 	"context"
 	"nats/internal/context/logs"
 	"nats/internal/context/traces"
-	natsrepo "nats/internal/infra/nats"
+	"nats/internal/infra/nats"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -17,14 +17,17 @@ type TopicService interface {
 	ListTopics(ctx context.Context) ([]string, error)
 }
 
-type topicService struct{}
+type topicService struct {
+	jsClient nats.JetStreamPool
+}
 
-func NewTopicService() TopicService {
-	return &topicService{}
+func NewTopicService(jsClient nats.JetStreamPool) TopicService {
+	return &topicService{jsClient: jsClient}
 }
 
 func (s *topicService) CreateTopic(ctx context.Context, name, subject string) error {
-	js := natsrepo.GetJetStream(ctx)
+	js := s.jsClient.GetJetStream(ctx)
+
 	streamCfg := jetstream.StreamConfig{
 		Name:              name,
 		Subjects:          []string{subject},
@@ -43,12 +46,12 @@ func (s *topicService) CreateTopic(ctx context.Context, name, subject string) er
 		DenyPurge:         false,
 	}
 
-	_, err := js.CreateStream(ctx, streamCfg) // js.AddStream(streamCfg)
+	_, err := js.CreateStream(ctx, streamCfg)
 	return err
 }
 
 func (s *topicService) DeleteTopic(ctx context.Context, name string) error {
-	js := natsrepo.GetJetStream(ctx)
+	js := s.jsClient.GetJetStream(ctx)
 	return js.DeleteStream(ctx, name)
 }
 
@@ -58,10 +61,10 @@ func (s *topicService) ListTopics(ctx context.Context) ([]string, error) {
 
 	logs.GetLogger(ctx).Info("ListTopics trace test", logs.WithTraceFields(ctx, zap.String("phase", "list"))...)
 
-	js := natsrepo.GetJetStream(ctx)
+	js := s.jsClient.GetJetStream(ctx)
 
 	var topics []string
-	lister := js.StreamNames(ctx) //) js.StreamNames()
+	lister := js.StreamNames(ctx)
 	for name := range lister.Name() {
 		topics = append(topics, "srn:scp:sns:kr-cp-1:100000000000:"+name)
 	}

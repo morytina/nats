@@ -25,7 +25,6 @@ import (
 func main() {
 	ctx := context.Background()
 	cfg, err := config.LoadConfig("config/config.yaml")
-
 	if err != nil {
 		panic("config load failed")
 	}
@@ -37,27 +36,32 @@ func main() {
 
 	const apiVer = "v1"
 
-	natsrepo.InitNatsPool(ctx, cfg)
-	if err := valkey.InitValkeyClient(ctx, cfg); err != nil {
-		natsrepo.ShutdownNatsPool(ctx)
+	// NATS POOL Create and DI
+	jsClient, err := natsrepo.NewConnectionPool(ctx, cfg)
+	if err != nil {
+		glogger.Error(ctx, "JetStream connection failed", "error", err)
 		os.Exit(1)
 	}
+	defer jsClient.ShutdownNatsPool(ctx)
+
+	if err := valkey.InitValkeyClient(ctx, cfg); err != nil {
+		jsClient.ShutdownNatsPool(ctx)
+		os.Exit(1)
+	}
+	defer valkey.ShutdownValkeyClient(ctx)
 
 	e := echo.New()
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
 	imiddle.AttachMiddlewares(e, logger)
 
-	topicSvc := service.NewTopicService()
-
 	// ackDispatcher is futureAck after process gorutine
 	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker) // Queue Size : TPS 100000
 	ackDispatcher.Start()
+	defer ackDispatcher.Stop()
 
 	ackTimeout := 30 * time.Second
-
-	// JetStreamClient DI
-	jsClient := natsrepo.GetJetStreamClient()
 	publishSvc := service.NewPublishService(jsClient, ackDispatcher, ackTimeout)
+	topicSvc := service.NewTopicService(jsClient)
 
 	accountBase := handler.AccountBaseHandlers(topicSvc)
 	accountTopicBase := handler.AccountTopicBaseHandlers(topicSvc, publishSvc)
@@ -75,10 +79,6 @@ func main() {
 	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
 	<-stop
 	glogger.Info(ctx, "Received server shutdown signal, cleaning up...")
-
-	natsrepo.ShutdownNatsPool(ctx)
-	valkey.ShutdownValkeyClient(ctx)
-	ackDispatcher.Stop()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()

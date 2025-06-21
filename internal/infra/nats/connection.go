@@ -6,42 +6,97 @@ import (
 	"nats/internal/context/metrics"
 	"nats/pkg/config"
 	"nats/pkg/glogger"
+	"sync/atomic"
 	"time"
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
 )
 
-func InitNatsPool(ctx context.Context, cfg *config.Config) {
-	if pool = cfg.Nats.ConnPoolCnt; pool == 0 {
-		glogger.Warn(ctx, "Connection count is 0. Setting default 3.", "pool size", pool)
-		pool = 3
+type JetStreamPool interface {
+	GetJetStream(ctx context.Context) jetstream.JetStream
+}
+
+type ConnectionPool struct {
+	ncPool  []*nats.Conn
+	jsPool  []jetstream.JetStream
+	nextIdx uint32
+	size    int
+}
+
+// NewConnectionPool creates a pool of JetStream connections
+func NewConnectionPool(ctx context.Context, cfg *config.Config) (*ConnectionPool, error) {
+	poolSize := cfg.Nats.ConnPoolCnt
+	if pool := cfg.Nats.ConnPoolCnt; pool == 0 {
+		glogger.Warn(ctx, "Connection count is 0. Setting default 3.", "pool size", poolSize)
+		poolSize = 3
 	}
-	ncPool = make([]*nats.Conn, pool)
-	jsPool = make([]jetstream.JetStream, pool)
-	for i := 0; i < pool; i++ {
+
+	ncPool := make([]*nats.Conn, poolSize)
+	jsPool := make([]jetstream.JetStream, poolSize)
+
+	for i := 0; i < poolSize; i++ {
 		connName := fmt.Sprintf("SNS-API-Conn-%d", i)
 		opts := makeNATSOptions(ctx, connName)
 
 		nc, err := nats.Connect(nats.DefaultURL, opts...)
 		if err != nil {
-			glogger.Fatal(ctx, "NATS 연결 실패", "index", i, "error", err)
+			return nil, fmt.Errorf("NATS 연결 실패 index=%d: %w", i, err)
 		}
 		ncPool[i] = nc
 
-		js, err := jetstream.New(nc, jetstream.WithPublishAsyncMaxPending(100000)) // nc.JetStream(nats.PublishAsyncMaxPending(100000))
+		js, err := jetstream.New(nc, jetstream.WithPublishAsyncMaxPending(100000))
 		if err != nil {
-			glogger.Fatal(ctx, "JetStream 사용 실패", "index", i, "error", err)
+			return nil, fmt.Errorf("JetStream 사용 실패 index=%d: %w", i, err)
 		}
 		jsPool[i] = js
 	}
-	glogger.Info(ctx, "NATS POOL 생성 성공", "pool", pool)
 
-	SetJetStreamClient(&defaultJetStreamClient{}) // 인터페이스 주입
+	glogger.Info(ctx, "NATS POOL 생성 성공", "pool", poolSize)
+	return &ConnectionPool{
+		ncPool: ncPool,
+		jsPool: jsPool,
+		size:   poolSize,
+	}, nil
 }
 
-func ShutdownNatsPool(ctx context.Context) {
-	for i, nc := range ncPool {
+// GetJetStream selects an available JetStream client from the pool (with reconnect if needed)
+func (c *ConnectionPool) GetJetStream(ctx context.Context) jetstream.JetStream {
+	for i := 0; i < c.size; i++ {
+		idx := int(atomic.AddUint32(&c.nextIdx, 1)) % c.size
+		nc := c.ncPool[idx]
+		js := c.jsPool[idx]
+
+		if nc == nil || nc.IsClosed() || !nc.IsConnected() {
+			glogger.Warn(ctx, "JetStream 연결 문제", "index", idx)
+			connName := fmt.Sprintf("SNS-API-Conn-%d", idx)
+			opts := makeNATSOptions(ctx, connName)
+
+			newNc, err := nats.Connect(nats.DefaultURL, opts...)
+			if err != nil {
+				glogger.Error(ctx, "재연결 실패", "index", idx, "error", err)
+				continue
+			}
+			newJs, err := jetstream.New(newNc)
+			if err != nil {
+				glogger.Error(ctx, "JetStreamContext 재생성 실패", "index", idx, "error", err)
+				continue
+			}
+			c.ncPool[idx] = newNc
+			c.jsPool[idx] = newJs
+			glogger.Info(ctx, "JetStream 재연결 성공", "index", idx)
+			return newJs
+		}
+		return js
+	}
+
+	glogger.Error(ctx, "사용 가능한 JetStream 연결 없음")
+	return c.jsPool[0]
+}
+
+// ShutdownNatsPool gracefully closes all NATS connections
+func (c *ConnectionPool) ShutdownNatsPool(ctx context.Context) {
+	for i, nc := range c.ncPool {
 		if nc != nil && nc.IsConnected() {
 			if err := nc.Drain(); err != nil {
 				glogger.Warn(ctx, "NATS 연결 종료 오류", "index", i, "error", err)
@@ -52,6 +107,7 @@ func ShutdownNatsPool(ctx context.Context) {
 	}
 }
 
+// makeNATSOptions builds common connection options
 func makeNATSOptions(ctx context.Context, connName string) []nats.Option {
 	return []nats.Option{
 		nats.Name(connName),
