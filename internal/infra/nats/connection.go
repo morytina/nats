@@ -15,9 +15,10 @@ import (
 
 type JetStreamPool interface {
 	GetJetStream(ctx context.Context) jetstream.JetStream
+	ShutdownNatsPool(ctx context.Context)
 }
 
-type ConnectionPool struct {
+type connectionPool struct {
 	ncPool  []*nats.Conn
 	jsPool  []jetstream.JetStream
 	nextIdx uint32
@@ -25,7 +26,7 @@ type ConnectionPool struct {
 }
 
 // NewConnectionPool creates a pool of JetStream connections
-func NewConnectionPool(ctx context.Context, cfg *config.Config) (*ConnectionPool, error) {
+func NewConnectionPool(ctx context.Context, cfg *config.Config) (JetStreamPool, error) {
 	poolSize := cfg.Nats.ConnPoolCnt
 	if pool := cfg.Nats.ConnPoolCnt; pool == 0 {
 		glogger.Warn(ctx, "Connection count is 0. Setting default 3.", "pool size", poolSize)
@@ -53,7 +54,7 @@ func NewConnectionPool(ctx context.Context, cfg *config.Config) (*ConnectionPool
 	}
 
 	glogger.Info(ctx, "NATS POOL 생성 성공", "pool", poolSize)
-	return &ConnectionPool{
+	return &connectionPool{
 		ncPool: ncPool,
 		jsPool: jsPool,
 		size:   poolSize,
@@ -61,7 +62,7 @@ func NewConnectionPool(ctx context.Context, cfg *config.Config) (*ConnectionPool
 }
 
 // GetJetStream selects an available JetStream client from the pool (with reconnect if needed)
-func (c *ConnectionPool) GetJetStream(ctx context.Context) jetstream.JetStream {
+func (c *connectionPool) GetJetStream(ctx context.Context) jetstream.JetStream {
 	for i := 0; i < c.size; i++ {
 		idx := int(atomic.AddUint32(&c.nextIdx, 1)) % c.size
 		nc := c.ncPool[idx]
@@ -95,7 +96,7 @@ func (c *ConnectionPool) GetJetStream(ctx context.Context) jetstream.JetStream {
 }
 
 // ShutdownNatsPool gracefully closes all NATS connections
-func (c *ConnectionPool) ShutdownNatsPool(ctx context.Context) {
+func (c *connectionPool) ShutdownNatsPool(ctx context.Context) {
 	for i, nc := range c.ncPool {
 		if nc != nil && nc.IsConnected() {
 			if err := nc.Drain(); err != nil {

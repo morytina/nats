@@ -1,11 +1,10 @@
 package service
 
 import (
-	"context"
-	"encoding/json"
 	"nats/internal/context/logs"
 	"nats/internal/context/traces"
-	"nats/internal/infra/valkey"
+	"nats/internal/entity"
+	"nats/internal/repo"
 	"sync"
 	"time"
 
@@ -17,26 +16,26 @@ import (
 type AckDispatcher interface {
 	Start()
 	Stop()
-	Enqueue(task *AckTask)
+	Enqueue(task *entity.AckTask)
 }
 
 type ackDispatcher struct {
-	queue        chan *AckTask
-	stopChan     chan struct{}
-	wg           sync.WaitGroup
-	size         int
-	worker       int
-	valkeyClient valkey.Client
+	queue    chan *entity.AckTask
+	stopChan chan struct{}
+	wg       sync.WaitGroup
+	size     int
+	worker   int
+	pubRepo  repo.PublishRepo
 }
 
 // NewAckDispatcher creates an AckDispatcher with the given queue size
-func NewAckDispatcher(size, worker int, valkeyClient valkey.Client) AckDispatcher {
+func NewAckDispatcher(size, worker int, pubRepo repo.PublishRepo) AckDispatcher {
 	return &ackDispatcher{
-		queue:        make(chan *AckTask, size),
-		stopChan:     make(chan struct{}),
-		size:         size,
-		worker:       worker,
-		valkeyClient: valkeyClient,
+		queue:    make(chan *entity.AckTask, size),
+		stopChan: make(chan struct{}),
+		size:     size,
+		worker:   worker,
+		pubRepo:  pubRepo,
 	}
 }
 
@@ -69,12 +68,12 @@ func (d *ackDispatcher) Stop() {
 }
 
 // Enqueue adds an AckTask to the queue for processing
-func (d *ackDispatcher) Enqueue(task *AckTask) {
+func (d *ackDispatcher) Enqueue(task *entity.AckTask) {
 	d.queue <- task
 }
 
 // process handles a single AckTask and stores result in valkey
-func (d *ackDispatcher) process(task *AckTask) {
+func (d *ackDispatcher) process(task *entity.AckTask) {
 	ctx := task.Ctx
 	logger := logs.GetLogger(ctx)
 
@@ -86,28 +85,15 @@ func (d *ackDispatcher) process(task *AckTask) {
 		if ack != nil {
 			logger.Info("ACK received successfully", logs.WithTraceFields(ctx, zap.String("id", task.ID), zap.Uint64("seq", ack.Sequence))...)
 			span.SetStatus(codes.Ok, "ACK received successfully")
-			_ = d.storeAckResult(ctx, task.ID, AckResult{Status: "ACK", Sequence: ack.Sequence})
+			_ = d.pubRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "ACK", Sequence: ack.Sequence})
 		} else {
 			logger.Error("ACK reception failure", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
 			span.SetStatus(codes.Error, "ACK reception failure")
-			_ = d.storeAckResult(ctx, task.ID, AckResult{Status: "FAILED"})
+			_ = d.pubRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "FAILED"})
 		}
 	case <-time.After(task.TimeOut):
 		logger.Warn("ACK receive timeout", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
 		span.SetStatus(codes.Error, "ACK receive timeout")
-		_ = d.storeAckResult(ctx, task.ID, AckResult{Status: "TIMEOUT"})
+		_ = d.pubRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "TIMEOUT"})
 	}
-}
-
-// storeAckResult persists the AckResult into valkey
-func (d *ackDispatcher) storeAckResult(ctx context.Context, id string, result AckResult) error {
-	bytes, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	err = d.valkeyClient.SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
-	if err != nil {
-		logs.GetLogger(ctx).Warn("Failed to save ACK status", zap.String("id", id), zap.Error(err))
-	}
-	return err
 }

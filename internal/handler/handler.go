@@ -20,8 +20,8 @@ func AccountTopicBaseHandlers(topicSvc service.TopicService, publishSvc service.
 	publishHandler := NewPublishHandler(publishSvc)
 
 	return map[string]func() echo.HandlerFunc{
-		"deleteTopic":    topicHandler.Delete,
-		"publish":        publishHandler.Publish,
-		"checkAckStatus": publishHandler.CheckAckStatus,
+		"deleteTopic":  topicHandler.Delete,
+		"publish":      publishHandler.Publish,
+		"publishCheck": publishHandler.CheckAckStatus,
 	}
 }

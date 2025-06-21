@@ -14,9 +14,10 @@ import (
 	"nats/internal/context/metrics"
 	"nats/internal/context/traces"
 	"nats/internal/handler"
-	natsrepo "nats/internal/infra/nats"
+	"nats/internal/infra/nats"
 	"nats/internal/infra/valkey"
 	imiddle "nats/internal/middleware"
+	"nats/internal/repo"
 	"nats/internal/service"
 	"nats/pkg/config"
 	"nats/pkg/glogger"
@@ -37,35 +38,44 @@ func main() {
 	const apiVer = "v1"
 
 	// NATS POOL Create and DI
-	jsClient, err := natsrepo.NewConnectionPool(ctx, cfg)
+	jsClient, err := nats.NewConnectionPool(ctx, cfg)
 	if err != nil {
 		glogger.Error(ctx, "JetStream connection failed", "error", err)
 		os.Exit(1)
 	}
 	defer jsClient.ShutdownNatsPool(ctx)
 
-	valkeyClient, err := valkey.NewClient(ctx, cfg)
+	// Valkey Client Create
+	valkeyClient, err := valkey.NewValkeyClient(ctx, cfg)
 	if err != nil {
+		glogger.Error(ctx, "ValkeyClient create failed", "error", err)
 		jsClient.ShutdownNatsPool(ctx)
 		os.Exit(1)
 	}
-	defer valkeyClient.Shutdown(ctx)
+	defer valkeyClient.Do(ctx, valkeyClient.B().Shutdown().Build())
 
-	e := echo.New()
-	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
-	imiddle.AttachMiddlewares(e, logger)
+	// Repository resource create
+	publishRepo := repo.NewPublishRepo(jsClient, valkeyClient)
 
-	// ackDispatcher is futureAck after process gorutine
-	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker, valkeyClient) // Queue Size : TPS 100000
+	// Service resource create
+	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker, publishRepo) // Queue Size : TPS 100000
 	ackDispatcher.Start()
 	defer ackDispatcher.Stop()
 
 	ackTimeout := 30 * time.Second
-	publishSvc := service.NewPublishService(jsClient, ackDispatcher, ackTimeout, valkeyClient)
+	publishSvc := service.NewPublishService(ackDispatcher, ackTimeout, publishRepo)
 	topicSvc := service.NewTopicService(jsClient)
 
+	// Handler resource create
 	accountBase := handler.AccountBaseHandlers(topicSvc)
 	accountTopicBase := handler.AccountTopicBaseHandlers(topicSvc, publishSvc)
+
+	// echo start
+	e := echo.New()
+	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
+	imiddle.AttachMiddlewares(e, logger)
+
+	// Setup router
 	apiRouter := handler.NewApiRouter(accountBase, accountTopicBase)
 	apiRouter.Register(e.Group(apiVer))
 

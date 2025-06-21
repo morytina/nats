@@ -5,20 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"nats/internal/context/logs"
-	"nats/internal/infra/nats"
-	"nats/internal/infra/valkey"
+	"nats/internal/entity"
+	"nats/internal/repo"
 	"strconv"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/nats-io/nats.go/jetstream"
 	"go.opentelemetry.io/otel/trace"
-	"go.uber.org/zap"
 )
-
-type AckResult struct {
-	Status   string `json:"status"`   // "PENDING", "ACK", "FAILED", "TIMEOUT"
-	Sequence uint64 `json:"sequence"` // JetStream Sequence if ACK
-}
 
 type PublishService interface {
 	PublishAsyncMessage(ctx context.Context, topicName, message, subject string) (string, error)
@@ -26,18 +21,26 @@ type PublishService interface {
 }
 
 type publishService struct {
-	jsClient     nats.JetStreamPool
-	dispatcher   AckDispatcher
-	timeout      time.Duration
-	valkeyClient valkey.Client
+	dispatcher AckDispatcher
+	timeout    time.Duration
+	pubRepo    repo.PublishRepo
 }
 
-func NewPublishService(jsClient nats.JetStreamPool, dispatcher AckDispatcher, timeout time.Duration, valkeyClient valkey.Client) PublishService {
+func NewPublishService(dispatcher AckDispatcher, timeout time.Duration, pubRepo repo.PublishRepo) PublishService {
 	return &publishService{
-		jsClient:     jsClient,
-		dispatcher:   dispatcher,
-		timeout:      timeout,
-		valkeyClient: valkeyClient,
+		dispatcher: dispatcher,
+		timeout:    timeout,
+		pubRepo:    pubRepo,
+	}
+}
+
+// creates a new AckTask with its own timeout context.
+func newAckTask(parentCtx context.Context, id string, future jetstream.PubAckFuture, timeout time.Duration) *entity.AckTask {
+	return &entity.AckTask{
+		ID:        id,
+		Ctx:       parentCtx,
+		AckFuture: future,
+		TimeOut:   timeout,
 	}
 }
 
@@ -52,8 +55,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 		subject = topicName
 	}
 
-	js := s.jsClient.GetJetStream(ctx)
-	ackFuture, err := js.PublishAsync(subject, []byte(message))
+	ackFuture, err := s.pubRepo.PublishAsyncMessage(ctx, message, subject)
 	if err != nil {
 		return "", err
 	}
@@ -66,21 +68,22 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 	}
 	taskCtx = logs.WithLogger(taskCtx, logger)
 	id := uuid.NewString()
-	_ = s.storeAckResult(taskCtx, id, AckResult{Status: "PENDING"})
+	_ = s.pubRepo.StoreAckResult(taskCtx, id, entity.AckResult{Status: "PENDING"})
 
-	task := NewAckTask(taskCtx, id, ackFuture, s.timeout)
+	task := newAckTask(taskCtx, id, ackFuture, s.timeout)
 	s.dispatcher.Enqueue(task)
 
 	return id, nil
 }
 
 func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string, error) {
-	jsonStr, err := s.valkeyClient.GetKey(ctx, id)
+	jsonStr, err := s.pubRepo.GetAckStatus(ctx, id)
+
 	if err != nil || jsonStr == "" {
 		return "", errors.New("not found")
 	}
 
-	var result AckResult
+	var result entity.AckResult
 	if err := json.Unmarshal([]byte(jsonStr), &result); err != nil {
 		return "", err
 	}
@@ -95,16 +98,4 @@ func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string,
 	default:
 		return "", errors.New("unknown status")
 	}
-}
-
-func (s *publishService) storeAckResult(ctx context.Context, id string, result AckResult) error {
-	bytes, err := json.Marshal(result)
-	if err != nil {
-		return err
-	}
-	err = s.valkeyClient.SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
-	if err != nil {
-		logs.GetLogger(ctx).Warn("Failed to save ACK status", zap.String("id", id), zap.Error(err))
-	}
-	return err
 }
