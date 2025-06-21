@@ -11,9 +11,7 @@ import (
 	"github.com/go-redis/redis/v8"
 )
 
-var clientInstance Client // 인터페이스로 선언
-
-func InitValkeyClient(ctx context.Context, cfg *config.Config) error {
+func NewClient(ctx context.Context, cfg *config.Config) (Client, error) {
 	addr := cfg.Valkey.Addr
 	password := cfg.Valkey.Password
 	db := cfg.Valkey.DB
@@ -32,27 +30,11 @@ func InitValkeyClient(ctx context.Context, cfg *config.Config) error {
 	if err := rawClient.Ping(ctx).Err(); err != nil {
 		metrics.ValkeyFailures.Inc()
 		glogger.Error(ctx, "Valkey 연결 실패", "addr", addr, "error", err)
-		return err
+		return nil, err
 	}
 
 	metrics.ValkeyReconnects.Inc()
 	glogger.Info(ctx, "Valkey 연결 성공", "addr", addr)
 
-	// 인터페이스 구현체로 등록
-	clientInstance = NewRedisClient(rawClient)
-	return nil
-}
-
-func GetClient() Client {
-	return clientInstance
-}
-
-func ShutdownValkeyClient(ctx context.Context) {
-	if rc, ok := clientInstance.(*redisClient); ok {
-		if err := rc.raw.Close(); err != nil {
-			glogger.Warn(ctx, "Valkey 종료 오류", "error", err)
-		} else {
-			glogger.Info(ctx, "Valkey 클라이언트 정상 종료")
-		}
-	}
+	return NewRedisClient(rawClient), nil
 }

@@ -50,3 +50,7 @@ func (c *redisClient) HGet(ctx context.Context, key, field string) (string, erro
 func (c *redisClient) HGetAll(ctx context.Context, key string) (map[string]string, error) {
 	return c.raw.HGetAll(ctx, key).Result()
 }
+
+func (c *redisClient) Shutdown(ctx context.Context) error {
+	return c.raw.Close()
+}

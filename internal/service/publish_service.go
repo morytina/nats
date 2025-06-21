@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
+	"go.uber.org/zap"
 )
 
 type AckResult struct {
@@ -25,16 +26,18 @@ type PublishService interface {
 }
 
 type publishService struct {
-	jsClient   nats.JetStreamPool
-	dispatcher AckDispatcher
-	timeout    time.Duration
+	jsClient     nats.JetStreamPool
+	dispatcher   AckDispatcher
+	timeout      time.Duration
+	valkeyClient valkey.Client
 }
 
-func NewPublishService(jsClient nats.JetStreamPool, dispatcher AckDispatcher, timeout time.Duration) PublishService {
+func NewPublishService(jsClient nats.JetStreamPool, dispatcher AckDispatcher, timeout time.Duration, valkeyClient valkey.Client) PublishService {
 	return &publishService{
-		jsClient:   jsClient,
-		dispatcher: dispatcher,
-		timeout:    timeout,
+		jsClient:     jsClient,
+		dispatcher:   dispatcher,
+		timeout:      timeout,
+		valkeyClient: valkeyClient,
 	}
 }
 
@@ -63,7 +66,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 	}
 	taskCtx = logs.WithLogger(taskCtx, logger)
 	id := uuid.NewString()
-	_ = storeAckResult(taskCtx, id, AckResult{Status: "PENDING"})
+	_ = s.storeAckResult(taskCtx, id, AckResult{Status: "PENDING"})
 
 	task := NewAckTask(taskCtx, id, ackFuture, s.timeout)
 	s.dispatcher.Enqueue(task)
@@ -72,7 +75,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 }
 
 func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string, error) {
-	jsonStr, err := valkey.GetClient().GetKey(ctx, id)
+	jsonStr, err := s.valkeyClient.GetKey(ctx, id)
 	if err != nil || jsonStr == "" {
 		return "", errors.New("not found")
 	}
@@ -92,4 +95,16 @@ func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string,
 	default:
 		return "", errors.New("unknown status")
 	}
+}
+
+func (s *publishService) storeAckResult(ctx context.Context, id string, result AckResult) error {
+	bytes, err := json.Marshal(result)
+	if err != nil {
+		return err
+	}
+	err = s.valkeyClient.SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
+	if err != nil {
+		logs.GetLogger(ctx).Warn("Failed to save ACK status", zap.String("id", id), zap.Error(err))
+	}
+	return err
 }

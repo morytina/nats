@@ -15,4 +15,5 @@ type Client interface {
 	HSet(ctx context.Context, key string, values ...interface{}) error
 	HGet(ctx context.Context, key, field string) (string, error)
 	HGetAll(ctx context.Context, key string) (map[string]string, error)
+	Shutdown(ctx context.Context) error
 }

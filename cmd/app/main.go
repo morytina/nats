@@ -44,23 +44,24 @@ func main() {
 	}
 	defer jsClient.ShutdownNatsPool(ctx)
 
-	if err := valkey.InitValkeyClient(ctx, cfg); err != nil {
+	valkeyClient, err := valkey.NewClient(ctx, cfg)
+	if err != nil {
 		jsClient.ShutdownNatsPool(ctx)
 		os.Exit(1)
 	}
-	defer valkey.ShutdownValkeyClient(ctx)
+	defer valkeyClient.Shutdown(ctx)
 
 	e := echo.New()
 	e.Any("/metrics", echo.WrapHandler(promhttp.Handler()))
 	imiddle.AttachMiddlewares(e, logger)
 
 	// ackDispatcher is futureAck after process gorutine
-	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker) // Queue Size : TPS 100000
+	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker, valkeyClient) // Queue Size : TPS 100000
 	ackDispatcher.Start()
 	defer ackDispatcher.Stop()
 
 	ackTimeout := 30 * time.Second
-	publishSvc := service.NewPublishService(jsClient, ackDispatcher, ackTimeout)
+	publishSvc := service.NewPublishService(jsClient, ackDispatcher, ackTimeout, valkeyClient)
 	topicSvc := service.NewTopicService(jsClient)
 
 	accountBase := handler.AccountBaseHandlers(topicSvc)

@@ -21,20 +21,22 @@ type AckDispatcher interface {
 }
 
 type ackDispatcher struct {
-	queue    chan *AckTask
-	stopChan chan struct{}
-	wg       sync.WaitGroup
-	size     int
-	worker   int
+	queue        chan *AckTask
+	stopChan     chan struct{}
+	wg           sync.WaitGroup
+	size         int
+	worker       int
+	valkeyClient valkey.Client
 }
 
 // NewAckDispatcher creates an AckDispatcher with the given queue size
-func NewAckDispatcher(size, worker int) AckDispatcher {
+func NewAckDispatcher(size, worker int, valkeyClient valkey.Client) AckDispatcher {
 	return &ackDispatcher{
-		queue:    make(chan *AckTask, size),
-		stopChan: make(chan struct{}),
-		size:     size,
-		worker:   worker,
+		queue:        make(chan *AckTask, size),
+		stopChan:     make(chan struct{}),
+		size:         size,
+		worker:       worker,
+		valkeyClient: valkeyClient,
 	}
 }
 
@@ -84,26 +86,26 @@ func (d *ackDispatcher) process(task *AckTask) {
 		if ack != nil {
 			logger.Info("ACK received successfully", logs.WithTraceFields(ctx, zap.String("id", task.ID), zap.Uint64("seq", ack.Sequence))...)
 			span.SetStatus(codes.Ok, "ACK received successfully")
-			_ = storeAckResult(ctx, task.ID, AckResult{Status: "ACK", Sequence: ack.Sequence})
+			_ = d.storeAckResult(ctx, task.ID, AckResult{Status: "ACK", Sequence: ack.Sequence})
 		} else {
 			logger.Error("ACK reception failure", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
 			span.SetStatus(codes.Error, "ACK reception failure")
-			_ = storeAckResult(ctx, task.ID, AckResult{Status: "FAILED"})
+			_ = d.storeAckResult(ctx, task.ID, AckResult{Status: "FAILED"})
 		}
 	case <-time.After(task.TimeOut):
 		logger.Warn("ACK receive timeout", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
 		span.SetStatus(codes.Error, "ACK receive timeout")
-		_ = storeAckResult(ctx, task.ID, AckResult{Status: "TIMEOUT"})
+		_ = d.storeAckResult(ctx, task.ID, AckResult{Status: "TIMEOUT"})
 	}
 }
 
 // storeAckResult persists the AckResult into valkey
-func storeAckResult(ctx context.Context, id string, result AckResult) error {
+func (d *ackDispatcher) storeAckResult(ctx context.Context, id string, result AckResult) error {
 	bytes, err := json.Marshal(result)
 	if err != nil {
 		return err
 	}
-	err = valkey.GetClient().SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
+	err = d.valkeyClient.SetKeyWithTTL(ctx, id, string(bytes), 30*time.Second)
 	if err != nil {
 		logs.GetLogger(ctx).Warn("Failed to save ACK status", zap.String("id", id), zap.Error(err))
 	}
