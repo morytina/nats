@@ -20,22 +20,22 @@ type AckDispatcher interface {
 }
 
 type ackDispatcher struct {
-	queue    chan *entity.AckTask
-	stopChan chan struct{}
-	wg       sync.WaitGroup
-	size     int
-	worker   int
-	pubRepo  repo.PublishRepo
+	queue      chan *entity.AckTask
+	stopChan   chan struct{}
+	wg         sync.WaitGroup
+	size       int
+	worker     int
+	valkeyRepo repo.ValkeyRepo
 }
 
 // NewAckDispatcher creates an AckDispatcher with the given queue size
-func NewAckDispatcher(size, worker int, pubRepo repo.PublishRepo) AckDispatcher {
+func NewAckDispatcher(size, worker int, valkeyRepo repo.ValkeyRepo) AckDispatcher {
 	return &ackDispatcher{
-		queue:    make(chan *entity.AckTask, size),
-		stopChan: make(chan struct{}),
-		size:     size,
-		worker:   worker,
-		pubRepo:  pubRepo,
+		queue:      make(chan *entity.AckTask, size),
+		stopChan:   make(chan struct{}),
+		size:       size,
+		worker:     worker,
+		valkeyRepo: valkeyRepo,
 	}
 }
 
@@ -85,15 +85,15 @@ func (d *ackDispatcher) process(task *entity.AckTask) {
 		if ack != nil {
 			logger.Info("ACK received successfully", logs.WithTraceFields(ctx, zap.String("id", task.ID), zap.Uint64("seq", ack.Sequence))...)
 			span.SetStatus(codes.Ok, "ACK received successfully")
-			_ = d.pubRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "ACK", Sequence: ack.Sequence})
+			_ = d.valkeyRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "ACK", Sequence: ack.Sequence})
 		} else {
 			logger.Error("ACK reception failure", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
 			span.SetStatus(codes.Error, "ACK reception failure")
-			_ = d.pubRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "FAILED"})
+			_ = d.valkeyRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "FAILED"})
 		}
 	case <-time.After(task.TimeOut):
 		logger.Warn("ACK receive timeout", logs.WithTraceFields(ctx, zap.String("id", task.ID))...)
 		span.SetStatus(codes.Error, "ACK receive timeout")
-		_ = d.pubRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "TIMEOUT"})
+		_ = d.valkeyRepo.StoreAckResult(ctx, task.ID, entity.AckResult{Status: "TIMEOUT"})
 	}
 }

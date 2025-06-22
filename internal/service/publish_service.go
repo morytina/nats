@@ -23,14 +23,16 @@ type PublishService interface {
 type publishService struct {
 	dispatcher AckDispatcher
 	timeout    time.Duration
-	pubRepo    repo.PublishRepo
+	natsRepo   repo.NatsRepo
+	valkeyRepo repo.ValkeyRepo
 }
 
-func NewPublishService(dispatcher AckDispatcher, timeout time.Duration, pubRepo repo.PublishRepo) PublishService {
+func NewPublishService(dispatcher AckDispatcher, timeout time.Duration, natsRepo repo.NatsRepo, valkeyRepo repo.ValkeyRepo) PublishService {
 	return &publishService{
 		dispatcher: dispatcher,
 		timeout:    timeout,
-		pubRepo:    pubRepo,
+		natsRepo:   natsRepo,
+		valkeyRepo: valkeyRepo,
 	}
 }
 
@@ -55,7 +57,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 		subject = topicName
 	}
 
-	ackFuture, err := s.pubRepo.PublishAsyncMessage(ctx, message, subject)
+	ackFuture, err := s.natsRepo.PublishAsyncMessage(ctx, message, subject)
 	if err != nil {
 		return "", err
 	}
@@ -68,7 +70,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 	}
 	taskCtx = logs.WithLogger(taskCtx, logger)
 	id := uuid.NewString()
-	_ = s.pubRepo.StoreAckResult(taskCtx, id, entity.AckResult{Status: "PENDING"})
+	_ = s.valkeyRepo.StoreAckResult(taskCtx, id, entity.AckResult{Status: "PENDING"})
 
 	task := newAckTask(taskCtx, id, ackFuture, s.timeout)
 	s.dispatcher.Enqueue(task)
@@ -77,7 +79,7 @@ func (s *publishService) PublishAsyncMessage(ctx context.Context, topicName, mes
 }
 
 func (s *publishService) CheckAckStatus(ctx context.Context, id string) (string, error) {
-	jsonStr, err := s.pubRepo.GetAckStatus(ctx, id)
+	jsonStr, err := s.valkeyRepo.GetAckStatus(ctx, id)
 
 	if err != nil || jsonStr == "" {
 		return "", errors.New("not found")

@@ -2,24 +2,43 @@ package valkey
 
 import (
 	"context"
+	"time"
 
 	"nats/pkg/config"
 
 	"github.com/valkey-io/valkey-go"
 )
 
-func NewValkeyClient(ctx context.Context, cfg *config.Config) (valkey.Client, error) {
-	addr := cfg.Valkey.Addr
-	password := cfg.Valkey.Password
+type ValkeyClient interface {
+	Shutdown(ctx context.Context) error
+	GetValue(ctx context.Context, key string) (string, error)
+	SetValueWithTTL(ctx context.Context, key string, value string, ttl time.Duration) error
+}
 
+type valkeyClient struct {
+	client valkey.Client
+}
+
+func NewValkeyClient(ctx context.Context, cfg *config.Config) (ValkeyClient, error) {
 	client, err := valkey.NewClient(valkey.ClientOption{
-		InitAddress: []string{addr},
-		Password:    password,
+		InitAddress: []string{cfg.Valkey.Addr},
+		Password:    cfg.Valkey.Password,
 	})
-
 	if err != nil {
 		return nil, err
 	}
+	return &valkeyClient{client: client}, nil
+}
 
-	return client, nil
+// graceful shutdown (e.g., when main.go ends)
+func (v *valkeyClient) Shutdown(ctx context.Context) error {
+	return v.client.Do(ctx, v.client.B().Shutdown().Build()).Error()
+}
+
+func (v *valkeyClient) GetValue(ctx context.Context, key string) (string, error) {
+	return v.client.Do(ctx, v.client.B().Get().Key(key).Build()).ToString()
+}
+
+func (v *valkeyClient) SetValueWithTTL(ctx context.Context, key string, value string, ttl time.Duration) error {
+	return v.client.Do(ctx, v.client.B().Set().Key(key).Value(value).Ex(ttl).Build()).Error()
 }

@@ -52,19 +52,20 @@ func main() {
 		jsClient.ShutdownNatsPool(ctx)
 		os.Exit(1)
 	}
-	defer valkeyClient.Do(ctx, valkeyClient.B().Shutdown().Build())
+	defer valkeyClient.Shutdown(ctx)
 
 	// Repository resource create
-	publishRepo := repo.NewPublishRepo(jsClient, valkeyClient)
+	natsRepo := repo.NewNatsRepo(jsClient)
+	valkeyRepo := repo.NewValkeyRepo(valkeyClient)
 
 	// Service resource create
-	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker, publishRepo) // Queue Size : TPS 100000
+	ackDispatcher := service.NewAckDispatcher(100000, cfg.Publish.Worker, valkeyRepo) // Queue Size : TPS 100000
 	ackDispatcher.Start()
 	defer ackDispatcher.Stop()
 
 	ackTimeout := 30 * time.Second
-	publishSvc := service.NewPublishService(ackDispatcher, ackTimeout, publishRepo)
-	topicSvc := service.NewTopicService(jsClient)
+	publishSvc := service.NewPublishService(ackDispatcher, ackTimeout, natsRepo, valkeyRepo)
+	topicSvc := service.NewTopicService(natsRepo)
 
 	// Handler resource create
 	accountBase := handler.AccountBaseHandlers(topicSvc)
