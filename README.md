@@ -57,7 +57,7 @@ curl "http://localhost:8080/v1/accountid/topicid?Action=publishCheck&messageId=<
 - nats 의 socket connection 테스트 이전에 http 한계를 조절
 ```bash
 # open file descriptors 조절, 리눅스 (파일,소켓, 디바이스, 파이프) 는 파일로 간주
-# -c2000 까지 늘렸을 때 Socket erros 가 사라진다. 
+# -c2000 까지 늘렸을 때 Socket errors 가 사라진다. 
 ulimit -n 65536
 
 # 기본이 4096으로 되어있음 (local)
