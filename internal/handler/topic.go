@@ -69,7 +69,7 @@ func (h *TopicHandler) Delete() echo.HandlerFunc {
 		}
 
 		logger.Info("스트림 삭제 성공", zap.String("topic", name))
-		return c.String(http.StatusOK, "Topic deleted successfully")
+		return c.String(http.StatusOK, name+" topic deleted successfully\n")
 	}
 }
 
