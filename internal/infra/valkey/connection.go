@@ -32,7 +32,7 @@ func NewValkeyClient(ctx context.Context, cfg *config.Config) (ValkeyClient, err
 
 // graceful shutdown (e.g., when main.go ends)
 func (v *valkeyClient) Shutdown(ctx context.Context) error {
-	return v.client.Do(ctx, v.client.B().Shutdown().Build()).Error()
+	return v.client.Close()
 }
 
 func (v *valkeyClient) GetValue(ctx context.Context, key string) (string, error) {
