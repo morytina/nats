@@ -3,12 +3,13 @@ package traces
 import (
 	"context"
 
+	"nats/internal/context/logs"
+
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
-	"nats/internal/context/logs"
 )
 
 func StartSpan(ctx context.Context, name string) (context.Context, trace.Span) {
