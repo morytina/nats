@@ -4,7 +4,10 @@ import (
 	"context"
 	"nats/internal/context/logs"
 	"nats/internal/context/traces"
+	"nats/internal/entity"
 	"nats/internal/repo"
+	"nats/pkg/config"
+	"strings"
 	"time"
 
 	"github.com/nats-io/nats.go/jetstream"
@@ -14,15 +17,16 @@ import (
 type TopicService interface {
 	CreateTopic(ctx context.Context, name, subject string) error
 	DeleteTopic(ctx context.Context, name string) error
-	ListTopics(ctx context.Context) ([]string, error)
+	ListTopics(ctx context.Context, account string) ([]entity.Topic, error)
 }
 
 type topicService struct {
 	natsRepo repo.NatsRepo
+	cfg      *config.Config
 }
 
-func NewTopicService(natsRepo repo.NatsRepo) TopicService {
-	return &topicService{natsRepo: natsRepo}
+func NewTopicService(natsRepo repo.NatsRepo, cfg *config.Config) TopicService {
+	return &topicService{natsRepo: natsRepo, cfg: cfg}
 }
 
 func (s *topicService) CreateTopic(ctx context.Context, name, subject string) error {
@@ -52,7 +56,7 @@ func (s *topicService) DeleteTopic(ctx context.Context, name string) error {
 	return s.natsRepo.DeleteStream(ctx, name)
 }
 
-func (s *topicService) ListTopics(ctx context.Context) ([]string, error) {
+func (s *topicService) ListTopics(ctx context.Context, account string) ([]entity.Topic, error) {
 	ctx, span := traces.StartSpan(ctx, "listTopics")
 	defer span.End()
 
@@ -63,9 +67,17 @@ func (s *topicService) ListTopics(ctx context.Context) ([]string, error) {
 		return nil, err
 	}
 
-	var topics []string
+	var topics []entity.Topic
 	for name := range namesCh {
-		topics = append(topics, "srn:scp:sns:kr-cp-1:100000000000:"+name)
+		var sb strings.Builder
+		sb.Grow(len("srn:scp:sns:::") + len(s.cfg.Region) + len(account) + len(name))
+		sb.WriteString("srn:scp:sns:")
+		sb.WriteString(s.cfg.Region)
+		sb.WriteByte(':')
+		sb.WriteString(account)
+		sb.WriteByte(':')
+		sb.WriteString(name)
+		topics = append(topics, entity.Topic{TopicSrn: sb.String()})
 	}
 	return topics, nil
 }
