@@ -64,6 +64,7 @@ func (s *topicService) ListTopics(ctx context.Context, account string) ([]entity
 
 	namesCh, err := s.natsRepo.ListStreamNames(ctx)
 	if err != nil {
+		traces.RecordSpanError(ctx, span, "natsRepo.ListStreamNames error", err)
 		return nil, err
 	}
 
