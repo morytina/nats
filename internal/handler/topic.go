@@ -83,7 +83,7 @@ func (h *TopicHandler) List() echo.HandlerFunc {
 		topics, err := h.svc.ListTopics(ctx, accountID)
 		if err != nil {
 			logger.Error("리스트 조회 실패", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			return c.JSON(entity.InternalError.HTTPCode, entity.InternalError.Error)
 		}
 
 		logger.Info("리스트 반환", zap.Int("count", len(topics)))
