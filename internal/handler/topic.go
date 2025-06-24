@@ -2,6 +2,7 @@ package handler
 
 import (
 	"nats/internal/context/logs"
+	"nats/internal/entity"
 	"nats/internal/service"
 	"net/http"
 
@@ -27,7 +28,7 @@ type CreateTopicResponse struct {
 }
 
 type ListTopicsResponse struct {
-	Topics []string `json:"topics"`
+	Topics []entity.Topic `json:"topics"`
 }
 
 func (h *TopicHandler) Create() echo.HandlerFunc {
@@ -79,15 +80,10 @@ func (h *TopicHandler) List() echo.HandlerFunc {
 		logger := logs.GetLogger(ctx)
 
 		accountID := c.Param("accountid")
-		topicObjs, err := h.svc.ListTopics(ctx, accountID)
+		topics, err := h.svc.ListTopics(ctx, accountID)
 		if err != nil {
 			logger.Error("리스트 조회 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
-		}
-
-		topics := make([]string, len(topicObjs))
-		for i, t := range topicObjs {
-			topics[i] = t.TopicSrn
 		}
 
 		logger.Info("리스트 반환", zap.Int("count", len(topics)))
