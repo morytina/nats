@@ -34,13 +34,12 @@ func AttachMiddlewares(e *echo.Echo, logger *zap.Logger) {
 			if requestID == "" {
 				requestID = uuid.NewString()
 			}
+			// Inject logger into context first so fields are attached to the correct logger
+			ctx = logs.WithLogger(ctx, logger)
 			ctx = logs.WithFields(ctx, zap.String("request_id", requestID))
 
 			// 만약 otelhttp.NewHandler 에서 trace header 받아온다면 아래 코드는 완전 삭제.
 			// ctx = otel.GetTextMapPropagator().Extract(ctx, propagation.HeaderCarrier(req.Header))
-
-			// Inject logger into context
-			ctx = logs.WithLogger(ctx, logger)
 			c.SetRequest(req.WithContext(ctx))
 			return next(c)
 		}
