@@ -2,7 +2,6 @@ package handler
 
 import (
 	"nats/internal/context/logs"
-	"nats/internal/entity"
 	"nats/internal/service"
 	"net/http"
 
