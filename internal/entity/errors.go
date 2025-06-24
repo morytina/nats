@@ -2,49 +2,49 @@ package entity
 
 // Error represents the error structure returned by AWS SNS.
 type Error struct {
-	Type           string `json:"Type"`
-	Code           string `json:"Code"`
-	Message        string `json:"Message"`
-	HTTPStatusCode int    `json:"HttpStatusCode"`
+	Type    string `json:"Type"`
+	Code    string `json:"Code"`
+	Message string `json:"Message"`
 }
 
 // ErrorResponse follows the AWS SNS error response format.
 type ErrorResponse struct {
 	Error     Error  `json:"Error"`
+	HTTPCode  int    `json:"HttpStatusCode"`
 	RequestID string `json:"RequestId,omitempty"`
 }
 
 // Error implements the error interface for ErrorResponse.
-func (e ErrorResponse) Error() string {
+func (e ErrorResponse) String() string {
 	return e.Error.Code + ": " + e.Error.Message
 }
 
 // Predefined SNS errors for the ListTopics API.
 var (
 	AuthorizationError = ErrorResponse{
+		HTTPCode: 403,
 		Error: Error{
-			Type:           "Sender",
-			Code:           "AuthorizationError",
-			Message:        "You are not authorized to perform this action.",
-			HTTPStatusCode: 403,
+			Type:    "Sender",
+			Code:    "AuthorizationError",
+			Message: "Indicates that the user has been denied access to the requested resource.",
 		},
 	}
 
 	InternalError = ErrorResponse{
+		HTTPCode: 500,
 		Error: Error{
-			Type:           "Server",
-			Code:           "InternalError",
-			Message:        "The request failed due to an internal error.",
-			HTTPStatusCode: 500,
+			Type:    "Server",
+			Code:    "InternalError",
+			Message: "Indicates an internal service error.",
 		},
 	}
 
 	InvalidParameter = ErrorResponse{
+		HTTPCode: 400,
 		Error: Error{
-			Type:           "Sender",
-			Code:           "InvalidParameter",
-			Message:        "One or more parameters are invalid.",
-			HTTPStatusCode: 400,
+			Type:    "Sender",
+			Code:    "InvalidParameter",
+			Message: "Indicates that a request parameter does not comply with the associated constraints.",
 		},
 	}
 )
