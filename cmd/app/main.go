@@ -65,7 +65,7 @@ func main() {
 
 	ackTimeout := 30 * time.Second
 	publishSvc := service.NewPublishService(ackDispatcher, ackTimeout, natsRepo, valkeyRepo)
-	topicSvc := service.NewTopicService(natsRepo)
+	topicSvc := service.NewTopicService(natsRepo, cfg)
 
 	// Handler resource create
 	accountBase := handler.AccountBaseHandlers(topicSvc)

@@ -2,6 +2,7 @@ package handler
 
 import (
 	"nats/internal/context/logs"
+	"nats/internal/entity"
 	"nats/internal/service"
 	"net/http"
 
@@ -78,10 +79,16 @@ func (h *TopicHandler) List() echo.HandlerFunc {
 		ctx := c.Request().Context()
 		logger := logs.GetLogger(ctx)
 
-		topics, err := h.svc.ListTopics(ctx)
+		accountID := c.Param("accountid")
+		topicObjs, err := h.svc.ListTopics(ctx, accountID)
 		if err != nil {
 			logger.Error("리스트 조회 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		}
+
+		topics := make([]string, len(topicObjs))
+		for i, t := range topicObjs {
+			topics[i] = t.TopicSrn
 		}
 
 		logger.Info("리스트 반환", zap.Int("count", len(topics)))
