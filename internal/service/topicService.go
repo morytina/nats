@@ -15,7 +15,7 @@ import (
 )
 
 type TopicService interface {
-	CreateTopic(ctx context.Context, name, subject string) error
+	CreateTopic(ctx context.Context, name, subject, account string) (entity.Topic, error)
 	DeleteTopic(ctx context.Context, name string) error
 	ListTopics(ctx context.Context, account string) ([]entity.Topic, error)
 }
@@ -29,7 +29,7 @@ func NewTopicService(natsRepo repo.NatsRepo, cfg *config.Config) TopicService {
 	return &topicService{natsRepo: natsRepo, cfg: cfg}
 }
 
-func (s *topicService) CreateTopic(ctx context.Context, name, subject string) error {
+func (s *topicService) CreateTopic(ctx context.Context, name, subject, account string) (entity.Topic, error) {
 	streamCfg := jetstream.StreamConfig{
 		Name:              name,
 		Subjects:          []string{subject},
@@ -49,7 +49,8 @@ func (s *topicService) CreateTopic(ctx context.Context, name, subject string) er
 	}
 
 	_, err := s.natsRepo.CreateStream(ctx, streamCfg)
-	return err
+	topic := makeTopicSrn(s.cfg.Region, account, name)
+	return topic, err
 }
 
 func (s *topicService) DeleteTopic(ctx context.Context, name string) error {
@@ -70,15 +71,19 @@ func (s *topicService) ListTopics(ctx context.Context, account string) ([]entity
 
 	var topics []entity.Topic
 	for name := range namesCh {
-		var sb strings.Builder
-		sb.Grow(len("srn:scp:sns:::") + len(s.cfg.Region) + len(account) + len(name))
-		sb.WriteString("srn:scp:sns:")
-		sb.WriteString(s.cfg.Region)
-		sb.WriteByte(':')
-		sb.WriteString(account)
-		sb.WriteByte(':')
-		sb.WriteString(name)
-		topics = append(topics, entity.Topic{TopicSrn: sb.String()})
+		topics = append(topics, makeTopicSrn(s.cfg.Region, account, name))
 	}
 	return topics, nil
+}
+
+func makeTopicSrn(region, account, name string) entity.Topic {
+	var sb strings.Builder
+	sb.Grow(len("srn:scp:sns:::") + len(region) + len(account) + len(name))
+	sb.WriteString("srn:scp:sns:")
+	sb.WriteString(region)
+	sb.WriteByte(':')
+	sb.WriteString(account)
+	sb.WriteByte(':')
+	sb.WriteString(name)
+	return entity.Topic{TopicSrn: sb.String()}
 }

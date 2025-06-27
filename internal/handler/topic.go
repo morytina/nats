@@ -24,7 +24,8 @@ type CreateTopicRequest struct {
 }
 
 type CreateTopicResponse struct {
-	TopicArn string `json:"topicArn"`
+	CreateTopicResult entity.Topic            `json:"CreateTopicResult"`
+	ResponseMetadata  entity.ResponseMetadata `json:"ResponseMetadata"`
 }
 
 type ListTopicsResponse struct {
@@ -42,14 +43,15 @@ func (h *TopicHandler) Create() echo.HandlerFunc {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 		}
 
-		if err := h.svc.CreateTopic(ctx, req.Name, req.Subject); err != nil {
+		result, err := h.svc.CreateTopic(ctx, req.Name, req.Subject, c.Param("accountid"))
+		if err != nil {
 			logger.Error("스트림 생성 실패", zap.Error(err))
 			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
 		}
-
 		logger.Info("스트림 생성 성공", zap.String("topic", req.Name))
+		meta := entity.ResponseMetadata{RequestId: c.Response().Header().Get(echo.HeaderXRequestID)}
 		return c.JSON(http.StatusOK, CreateTopicResponse{
-			TopicArn: "srn:scp:sns:kr-cp-1:100000000000:" + req.Name,
+			CreateTopicResult: result, ResponseMetadata: meta,
 		})
 	}
 }
