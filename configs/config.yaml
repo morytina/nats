@@ -1,7 +1,7 @@
 region: kr-west1
 env: dev2
 log:
-  level: warn
+  level: info
 nats:
   connPoolCount: 5
 valkey:
