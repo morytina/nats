@@ -22,6 +22,7 @@ func AttachMiddlewares(e *echo.Echo, logger *zap.Logger) {
 	e.Use(middleware.Logger())
 	e.Use(middleware.Recover())
 	e.Use(middleware.RequestID())
+	e.Validator = NewCustomValidator() // validator.go
 
 	// Inject request_id, trace_id, span_id into context + logger
 	e.Use(func(next echo.HandlerFunc) echo.HandlerFunc {

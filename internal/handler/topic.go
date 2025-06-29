@@ -5,6 +5,7 @@ import (
 	"nats/internal/entity"
 	"nats/internal/service"
 	"net/http"
+	"strings"
 
 	"github.com/labstack/echo/v4"
 	"go.uber.org/zap"
@@ -19,13 +20,20 @@ func NewTopicHandler(svc service.TopicService) *TopicHandler {
 }
 
 type CreateTopicRequest struct {
-	Name    string `json:"name"`
-	Subject string `json:"subject"`
+	Name string `json:"Name" validate:"required"`
 }
 
 type CreateTopicResponse struct {
 	CreateTopicResult entity.Topic            `json:"CreateTopicResult"`
 	ResponseMetadata  entity.ResponseMetadata `json:"ResponseMetadata"`
+}
+
+type DeleteTopicRequest struct {
+	TopicSrn string `json:"TopicSrn" validate:"required"`
+}
+
+type DeleteTopicResponse struct {
+	ResponseMetadata entity.ResponseMetadata `json:"ResponseMetadata"`
 }
 
 type ListTopicsResponse struct {
@@ -35,20 +43,24 @@ type ListTopicsResponse struct {
 func (h *TopicHandler) Create() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
-		logger := logs.GetLogger(ctx)
 
 		var req CreateTopicRequest
 		if err := c.Bind(&req); err != nil {
-			logger.Warn("요청 파싱 실패", zap.Error(err))
-			return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+			logs.GetLogger(ctx).Error("Invalid createTopic request parameter", zap.Error(err))
+			return c.JSON(entity.InvalidParameter.HTTPCode, entity.InvalidParameter.Error)
 		}
 
-		result, err := h.svc.CreateTopic(ctx, req.Name, req.Subject, c.Param("accountid"))
-		if err != nil {
-			logger.Error("스트림 생성 실패", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		if err := c.Validate(&req); err != nil {
+			logs.GetLogger(ctx).Error("Required parameter is missing", zap.Error(err))
+			return c.JSON(entity.InvalidParameter.HTTPCode, entity.InvalidParameter.Error)
 		}
-		logger.Info("스트림 생성 성공", zap.String("topic", req.Name))
+
+		result, err := h.svc.CreateTopic(ctx, req.Name, c.Param("accountid"))
+		if err != nil {
+			logs.GetLogger(ctx).Error("Failed to create stream", zap.Error(err))
+			return c.JSON(entity.InternalError.HTTPCode, entity.InternalError.Error)
+		}
+		logs.GetLogger(ctx).Info("Stream creation success", zap.String("topic", req.Name))
 		meta := entity.ResponseMetadata{RequestId: c.Response().Header().Get(echo.HeaderXRequestID)}
 		return c.JSON(http.StatusOK, CreateTopicResponse{
 			CreateTopicResult: result, ResponseMetadata: meta,
@@ -59,36 +71,47 @@ func (h *TopicHandler) Create() echo.HandlerFunc {
 func (h *TopicHandler) Delete() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
-		logger := logs.GetLogger(ctx)
 
-		name := c.QueryParam("name")
+		var req DeleteTopicRequest
+		if err := c.Bind(&req); err != nil {
+			logs.GetLogger(ctx).Error("Invalid deleteTopic request parameter", zap.Error(err))
+			return c.JSON(entity.InvalidParameter.HTTPCode, entity.InvalidParameter.Error)
+		}
+
+		if err := c.Validate(&req); err != nil {
+			logs.GetLogger(ctx).Error("Required parameter is missing", zap.Error(err))
+			return c.JSON(entity.InvalidParameter.HTTPCode, entity.InvalidParameter.Error)
+		}
+
+		parts := strings.Split(req.TopicSrn, ":")
+		name := parts[len(parts)-1]
+
 		if name == "" {
 			return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing 'name' parameter"})
 		}
 
 		if err := h.svc.DeleteTopic(ctx, name); err != nil {
-			logger.Error("스트림 삭제 실패", zap.Error(err))
-			return c.JSON(http.StatusInternalServerError, map[string]string{"error": err.Error()})
+			logs.GetLogger(ctx).Error("Failed to delete stream", zap.Error(err))
+			return c.JSON(entity.InternalError.HTTPCode, entity.InternalError.Error)
 		}
 
-		logger.Info("스트림 삭제 성공", zap.String("topic", name))
-		return c.String(http.StatusOK, name+" topic deleted successfully\n")
+		logs.GetLogger(ctx).Info("Stream deletion success", zap.String("topic", name))
+		meta := entity.ResponseMetadata{RequestId: c.Response().Header().Get(echo.HeaderXRequestID)}
+		return c.JSON(http.StatusOK, DeleteTopicResponse{ResponseMetadata: meta})
 	}
 }
 
 func (h *TopicHandler) List() echo.HandlerFunc {
 	return func(c echo.Context) error {
 		ctx := c.Request().Context()
-		logger := logs.GetLogger(ctx)
 
-		accountID := c.Param("accountid")
-		topics, err := h.svc.ListTopics(ctx, accountID)
+		topics, err := h.svc.ListTopics(ctx, c.Param("accountid"))
 		if err != nil {
-			logger.Error("리스트 조회 실패", zap.Error(err))
+			logs.GetLogger(ctx).Error("Topic list lookup failed", zap.Error(err))
 			return c.JSON(entity.InternalError.HTTPCode, entity.InternalError.Error)
 		}
 
-		logger.Info("리스트 반환", zap.Int("count", len(topics)))
+		logs.GetLogger(ctx).Info("Return topic list", zap.Int("count", len(topics)))
 		return c.JSON(http.StatusOK, ListTopicsResponse{Topics: topics})
 	}
 }

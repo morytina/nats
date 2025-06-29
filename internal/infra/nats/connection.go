@@ -2,7 +2,9 @@ package nats
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"nats/internal/context/logs"
 	"nats/internal/context/metrics"
 	"nats/pkg/config"
 	"nats/pkg/glogger"
@@ -11,10 +13,11 @@ import (
 
 	"github.com/nats-io/nats.go"
 	"github.com/nats-io/nats.go/jetstream"
+	"go.uber.org/zap"
 )
 
 type JetStreamPool interface {
-	GetJetStream(ctx context.Context) jetstream.JetStream
+	GetJetStream(ctx context.Context) (jetstream.JetStream, error)
 	ShutdownNatsPool(ctx context.Context)
 }
 
@@ -62,37 +65,38 @@ func NewConnectionPool(ctx context.Context, cfg *config.Config) (JetStreamPool, 
 }
 
 // GetJetStream selects an available JetStream client from the pool (with reconnect if needed)
-func (c *connectionPool) GetJetStream(ctx context.Context) jetstream.JetStream {
+func (c *connectionPool) GetJetStream(ctx context.Context) (jetstream.JetStream, error) {
 	for i := 0; i < c.size; i++ {
 		idx := int(atomic.AddUint32(&c.nextIdx, 1)) % c.size
 		nc := c.ncPool[idx]
 		js := c.jsPool[idx]
 
 		if nc == nil || nc.IsClosed() || !nc.IsConnected() {
-			glogger.Warn(ctx, "JetStream 연결 문제", "index", idx)
+			logs.GetLogger(ctx).Warn("JetStream 연결 문제", logs.WithTraceFields(ctx, zap.Int("index", idx))...)
 			connName := fmt.Sprintf("SNS-API-Conn-%d", idx)
 			opts := makeNATSOptions(ctx, connName)
 
 			newNc, err := nats.Connect(nats.DefaultURL, opts...)
 			if err != nil {
-				glogger.Error(ctx, "재연결 실패", "index", idx, "error", err)
+				logs.GetLogger(ctx).Error("재연결 실패", logs.WithTraceFields(ctx, zap.Int("index", idx), zap.Error(err))...)
 				continue
 			}
 			newJs, err := jetstream.New(newNc)
 			if err != nil {
-				glogger.Error(ctx, "JetStreamContext 재생성 실패", "index", idx, "error", err)
+				logs.GetLogger(ctx).Error("JetStreamContext 재생성 실패", logs.WithTraceFields(ctx, zap.Int("index", idx), zap.Error(err))...)
 				continue
 			}
 			c.ncPool[idx] = newNc
 			c.jsPool[idx] = newJs
-			glogger.Info(ctx, "JetStream 재연결 성공", "index", idx)
-			return newJs
+			logs.GetLogger(ctx).Info("JetStream 재연결 성공", logs.WithTraceFields(ctx, zap.Int("index", idx))...)
+			return newJs, nil
 		}
-		return js
+		return js, nil
 	}
 
-	glogger.Error(ctx, "사용 가능한 JetStream 연결 없음")
-	return c.jsPool[0]
+	err := errors.New("no available JetStream connection")
+	logs.GetLogger(ctx).Error("GetJetStream fail", logs.WithTraceFields(ctx, zap.Error(err))...)
+	return nil, err
 }
 
 // ShutdownNatsPool gracefully closes all NATS connections

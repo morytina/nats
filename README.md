@@ -34,7 +34,9 @@ curl -X POST "http://localhost:8080/v1/accountid?Action=createTopic" \
   -d '{"name": "sns-wrk-test", "subject": "sns.wrk.test"}'
  
 # Delete API
-curl -X POST "http://localhost:8080/v1/accountid/topicid?Action=deleteTopic&name=sns-wrk-test"
+curl -X POST "http://localhost:8080/v1/accountid/topicid?Action=deleteTopic" \
+  -H "Content-Type: application/json" \
+  -d '{"TopicSrn": "srn:scp:sns:kr-west1:accountid:sns-wrk-test"}'
 
 # List API
 curl "http://localhost:8080/v1/accountid?Action=listTopics"
